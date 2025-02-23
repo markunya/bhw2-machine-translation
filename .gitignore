@@ -1,0 +1,11 @@
+venv
+wandb
+checkpoints
+test
+train
+
+*/__pycache__/
+*.out
+
+tester.ipynb
+*.sbatch

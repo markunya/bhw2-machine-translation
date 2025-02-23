@@ -1,0 +1,53 @@
+{
+    "exp": {
+        "project_name": "dl_bhw_2",
+        "device": "cuda",
+        "seed": 42,
+        "use_wandb": false
+    },
+    "data": {
+        "trainval_dataset": "simple_trainval_dataset",
+        "test_dataset": "simple_test_dataset",
+        "dataset_dir": "./",
+        "train_batch_size": 64,
+        "val_batch_size": 64,
+        "val_size": 0.04,
+        "workers": 4
+    },
+    "checkpoint_path": null,
+    "inference": {
+        "output_dir": "./",
+        "test_batch_size": 64
+    },
+    "train": {
+        "classifier": "resnet",
+        "classifier_args": {
+            "num_blocks": [2, 2, 2, 2]
+        },
+        "optimizer": "adamW",
+        "optimizer_args": {
+            "lr": 0.0001
+        },
+        "scheduler": "multi_step",
+        "scheduler_metric": "accuracy",
+        "scheduler_args": {
+            "milestones": [30],
+            "gamma": 0.1
+        },
+        "val_metrics": [
+            "accuracy"
+        ],
+        "epochs": 35,
+        "checkpoint_epoch": 35,
+        "checkpoints_dir": "./checkpoints"
+    },
+    "augmentations": {
+        "horizontal_flip": null,
+        "bcs": null,
+        "crop": null
+    },
+    "mixes": ["cutmix"],
+    "losses": {
+        "cross_entropy_loss": 1.0
+    }
+}
