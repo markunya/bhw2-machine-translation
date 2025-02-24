@@ -3,15 +3,28 @@
         "project_name": "dl_bhw_2",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": false
+        "use_wandb": false,
+        "log_num_samples": 10
     },
     "data": {
-        "trainval_dataset": "simple_trainval_dataset",
-        "test_dataset": "simple_test_dataset",
-        "dataset_dir": "./",
+        "trainval_dataset": "lang2lang_dataset",
+        "test_dataset": "lang_dataset",
+
+        "src_vocab_filename": "de_vocab",
+        "dst_vocab_filename": "en_vocab",
+        "vocab_args": {
+            "vocab_dir": "vocabularys",
+            "min_freq": 1
+        },
+
+        "train_src_texts_file_path": "datasets/data/train.de-en.de",
+        "train_dst_texts_file_path": "datasets/data/train.de-en.en",
+        "val_src_texts_file_path": "datasets/data/val.de-en.de",
+        "val_dst_texts_file_path": "datasets/data/train.de-en.en",
+        "inf_texts_file_path": "datasets/data/test1.de-en.de", 
+
         "train_batch_size": 64,
         "val_batch_size": 64,
-        "val_size": 0.04,
         "workers": 4
     },
     "checkpoint_path": null,
@@ -20,34 +33,29 @@
         "test_batch_size": 64
     },
     "train": {
-        "classifier": "resnet",
-        "classifier_args": {
-            "num_blocks": [2, 2, 2, 2]
+        "translator": "transformer",
+        "translator_args": {
         },
         "optimizer": "adamW",
         "optimizer_args": {
             "lr": 0.0001
         },
         "scheduler": "multi_step",
-        "scheduler_metric": "accuracy",
+        "scheduler_metric": "bleu",
         "scheduler_args": {
-            "milestones": [30],
+            "milestones": [6],
             "gamma": 0.1
         },
         "val_metrics": [
             "accuracy"
         ],
-        "epochs": 35,
-        "checkpoint_epoch": 35,
+        "epochs": 8,
+        "checkpoint_epoch": 8,
         "checkpoints_dir": "./checkpoints"
     },
-    "augmentations": {
-        "horizontal_flip": null,
-        "bcs": null,
-        "crop": null
-    },
-    "mixes": ["cutmix"],
     "losses": {
-        "cross_entropy_loss": 1.0
+        "cross_entropy_loss": {
+            "coef": 1.0
+        }
     }
 }

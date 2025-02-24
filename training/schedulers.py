@@ -60,16 +60,45 @@ class BaseScheduler:
 
     def get_last_lr(self):
         return self.scheduler.get_last_lr()
+    
+@schedulers_registry.add_to_registry(name='multi_step')
+class MultiStepScheduler(BaseScheduler):
+    def __init__(
+            self,
+            optimizer,
+            reduce_time: ReduceLrTime='epoch',
+            step_period=None,
+            warmup_steps=0,
+            warmup_curve: WarmUpCurve='linear',
+            **kwargs
+        ):
+        super().__init__(
+            optimizer,
+            MultiStepLR,
+            reduce_time,
+            step_period,
+            warmup_steps,
+            warmup_curve,
+            **kwargs
+        )
 
 @schedulers_registry.add_to_registry(name='exponential')
 class ExponentialScheduler(BaseScheduler):
     def __init__(
             self,
             optimizer,
-            reduce_time: ReduceLrTime,
+            reduce_time: ReduceLrTime='epoch',
             step_period=None,
             warmup_steps=0,
             warmup_curve: WarmUpCurve='linear',
             **kwargs
         ):
-        super().__init__(optimizer, ExponentialLR, reduce_time, step_period, warmup_steps, warmup_curve, **kwargs)
+        super().__init__(
+            optimizer,
+            ExponentialLR,
+            reduce_time,
+            step_period,
+            warmup_steps,
+            warmup_curve,
+            **kwargs
+        )

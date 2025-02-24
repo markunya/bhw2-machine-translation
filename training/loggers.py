@@ -55,9 +55,9 @@ class TrainingLogger:
         self.logger.log_values(val_metrics, epoch)
 
     @log_if_enabled
-    def log_translations(self, l1_texts, l2_texts_references, l2_texts_hypotheses):
+    def log_translations(self, src_texts, dst_texts_references, dst_texts_hypotheses):
         columns = ["Source Text", "Reference Translation", "Hypothesis Translation"]
-        data = list(zip(l1_texts, l2_texts_references, l2_texts_hypotheses))
+        data = list(zip(src_texts, dst_texts_references, dst_texts_hypotheses))
         self.logger.log_table("translation_samples", columns, data)
 
     @log_if_enabled

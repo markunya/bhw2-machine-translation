@@ -7,15 +7,15 @@ from utils.class_registry import ClassRegistry
 losses_registry = ClassRegistry()
 
 class LossBuilder:
-    def __init__(self, config):
+    def __init__(self, losses_config):
         self.losses = {}
         self.coefs = {}
 
-        for loss_name, loss_coef in config['losses'].items():
-            self.coefs[loss_name] = loss_coef
+        for loss_name in losses_config.keys():
+            self.coefs[loss_name] = losses_config[loss_name]['coef']
             loss_args = {}
-            if 'losses_args' in config and loss_name in config['losses_args']:
-                loss_args = config['losses_args']['loss_name']
+            if f'args' in losses_config[loss_name]:
+                loss_args = losses_config[loss_name]['args']
             self.losses[loss_name] = losses_registry[loss_name](**loss_args)
 
     def calculate_loss(self, pred_logits, target):

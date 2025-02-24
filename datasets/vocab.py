@@ -9,12 +9,17 @@ class Vocabulary:
             vocab_filename="vocab",
             unk_token="<unk>",
             pad_token="<pad>",
+            bos_token="<bos>",
+            eos_token="<eos>",
             min_freq=1,
             save_vocab_file=True
         ):
 
         self.unk_token = unk_token
         self.pad_token = pad_token
+        self.bos_token = bos_token
+        self.eos_token = eos_token
+
         self.min_freq = min_freq
         self.word2idx = {}
         self.idx2word = {}
@@ -45,13 +50,13 @@ class Vocabulary:
 
         self.word2idx = {}
         self.idx2word = {}
+        
+        for i, token in enumerate([self.unk_token, self.pad_token,
+                                   self.bos_token, self.eos_token]):
+            self.word2idx[token] = i
+            self.idx2word[i] = token
 
-        self.word2idx[self.unk_token] = 0
-        self.idx2word[0] = self.unk_token
-        self.word2idx[self.pad_token] = 1
-        self.idx2word[1] = self.pad_token
-
-        idx = 2
+        idx = 4
         for word, freq in self.counter.items():
             if freq >= self.min_freq:
                 self.word2idx[word] = idx
@@ -75,6 +80,8 @@ class Vocabulary:
             "min_freq": self.min_freq,
             "unk_token": self.unk_token,
             "pad_token": self.pad_token,
+            "bos_token": self.bos_token,
+            "eos_token": self.eos_token
         }
         
         if not os.path.exists(self.vocab_file):
@@ -92,6 +99,8 @@ class Vocabulary:
         self.min_freq = vocab_data["min_freq"]
         self.unk_token = vocab_data["unk_token"]
         self.pad_token = vocab_data["pad_token"]
+        self.bos_token = vocab_data["bos_token"]
+        self.eos_token = vocab_data["eos_token"]
 
     def __len__(self):
         return len(self.word2idx)
