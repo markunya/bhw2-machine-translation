@@ -1,69 +1,96 @@
 import torch
+import torchtext
 from torch import nn
+from utils.model_utils import create_mask
+import torch.nn.functional as F
+import math
 from utils.class_registry import ClassRegistry
-from utils.model_utils import weights_init
-from abc import ABC, abstractmethod
 
 translators_registry = ClassRegistry()
 
-class BaseTranslator(nn.Module, ABC):
-    def __init__(self):
+class PositionalEmbedding(nn.Module):
+    def __init__(
+            self,
+            vocab_size,
+            emb_size,
+            dropout_prob,
+            max_len
+        ):
         super().__init__()
 
-    @abstractmethod
-    def forward(self, src_indices, dst_indices):
-        pass
+        self.emb_size = emb_size
+        self.embedding = nn.Embedding(vocab_size, emb_size)
 
-    @abstractmethod
-    def inference(self, src_indices):
-        pass
+        range = torch.exp(-torch.arange(0, emb_size, 2) * math.log(10000) / emb_size)
+        pos = torch.arange(0, max_len).reshape(max_len, 1)
+
+        pos_embedding = torch.zeros((max_len, emb_size))
+        pos_embedding[:, 0::2] = torch.sin(pos * range)
+        pos_embedding[:, 1::2] = torch.cos(pos * range)
+        pos_embedding = pos_embedding.unsqueeze(-2)
+
+        self.dropout = nn.Dropout(dropout_prob)
+        self.register_buffer('pos_embedding', pos_embedding)
+
+    def forward(self, tokens):
+        token_emb = self.embedding(tokens) * math.sqrt(self.emb_size)
+        return self.dropout(token_emb + self.pos_embedding[:token_emb.size(0), :])
 
 @translators_registry.add_to_registry(name="transformer")
-class Transformer(BaseTranslator):
+class TransormerTranslator(nn.Module):
     def __init__(
-        self,
-        vocab_size: int,
-        d_model: int = 512,
-        nhead: int = 8,
-        num_encoder_layers: int = 6,
-        num_decoder_layers: int = 6,
-        dim_feedforward: int = 2048,
-        dropout: float = 0.1,
-        activation: str = "relu",
-    ):
+            self,
+            num_encoder_layers,
+            num_decoder_layers,
+            max_len,
+            emb_size,
+            nhead,
+            src_vocab_size,
+            tgt_vocab_size,
+            dim_feedforward = 512,
+            dropout_prob = 0.1
+        ):
+
         super().__init__()
-
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.positional_encoding = nn.Parameter(torch.zeros(1, 1000, d_model))
-
         self.transformer = nn.Transformer(
-            d_model=d_model,
-            nhead=nhead,
-            num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
-            activation=activation,
+                                    d_model=emb_size,
+                                    nhead=nhead,
+                                    num_encoder_layers=num_encoder_layers,
+                                    num_decoder_layers=num_decoder_layers,
+                                    dim_feedforward=dim_feedforward,
+                                    dropout=dropout_prob
+                                )
+        self.gen_layer = nn.Linear(emb_size, tgt_vocab_size)
+
+        pos_emb_kwargs = dict(
+            emb_size=emb_size,
+            dropout_prob=dropout_prob,
+            max_len=max_len
         )
+        self.src_tok_emb = PositionalEmbedding(
+                src_vocab_size, **pos_emb_kwargs
+            )
+        self.tgt_tok_emb = PositionalEmbedding(
+                tgt_vocab_size, **pos_emb_kwargs
+            )
+        
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
-        self.fc_out = nn.Linear(d_model, vocab_size)
+    def forward(self, src_indices, tgt_indices):
+        tgt_input = tgt_indices[:,:-1]
+        raise ValueError('wtf')
+        src_mask, tgt_mask, src_padding_mask, tgt_padding_mask = create_mask(src_indices, tgt_input)
+        
+        src_emb = self.src_tok_emb(src_indices)
+        tgt_emb = self.tgt_tok_emb(tgt_indices)
+        outs = self.transformer(
+                    src_emb, tgt_emb, src_mask, tgt_mask, None,
+                    src_padding_mask, tgt_padding_mask, src_padding_mask
+                )
+        
+        return self.gen_layer(outs)
 
-        self.apply(weights_init)
-
-    def forward(self, src_indices, dst_indices):
-        src = self.embedding(src_indices) + self.positional_encoding[:, :src_indices.size(1)]
-        dst = self.embedding(dst_indices) + self.positional_encoding[:, :dst_indices.size(1)]
-
-        src = src_indices.permute(1, 0, 2)
-        dst = dst.permute(1, 0, 2)
-
-        transformer_out = self.transformer(src, dst)
-        transformer_out = transformer_out.permute(1, 0, 2)
-        output = self.fc_out(transformer_out)
-
-        return output
-    
-    def inference(self, src_indices, max_len=None):
-        if max_len is None:
-            max_len = 2*len(src_indices)
+    def inference(self, src_indices):
         raise NotImplementedError

@@ -4,24 +4,21 @@
         "device": "cuda",
         "seed": 42,
         "use_wandb": false,
+        "wandb_key": "5312fc1a5d4cb4573284fb1fdc2337734e241197",
         "log_num_samples": 10
     },
     "data": {
         "trainval_dataset": "lang2lang_dataset",
         "test_dataset": "lang_dataset",
 
-        "src_vocab_filename": "de_vocab",
-        "dst_vocab_filename": "en_vocab",
-        "vocab_args": {
-            "vocab_dir": "vocabularys",
-            "min_freq": 1
-        },
-
         "train_src_texts_file_path": "datasets/data/train.de-en.de",
-        "train_dst_texts_file_path": "datasets/data/train.de-en.en",
+        "train_tgt_texts_file_path": "datasets/data/train.de-en.en",
         "val_src_texts_file_path": "datasets/data/val.de-en.de",
-        "val_dst_texts_file_path": "datasets/data/train.de-en.en",
-        "inf_texts_file_path": "datasets/data/test1.de-en.de", 
+        "val_tgt_texts_file_path": "datasets/data/train.de-en.en",
+        "inf_texts_file_path": "datasets/data/test1.de-en.de",
+
+        "vocab_min_freq": 1,
+        "max_len": 50,
 
         "train_batch_size": 64,
         "val_batch_size": 64,
@@ -35,6 +32,10 @@
     "train": {
         "translator": "transformer",
         "translator_args": {
+            "emb_size": 512,
+            "nhead": 8,
+            "num_encoder_layers": 3,
+            "num_decoder_layers": 3
         },
         "optimizer": "adamW",
         "optimizer_args": {
@@ -47,7 +48,7 @@
             "gamma": 0.1
         },
         "val_metrics": [
-            "accuracy"
+            "bleu"
         ],
         "epochs": 8,
         "checkpoint_epoch": 8,
@@ -55,7 +56,10 @@
     },
     "losses": {
         "cross_entropy_loss": {
-            "coef": 1.0
+            "coef": 1.0,
+            "args": {
+                "ignore_index": 1
+            }
         }
     }
 }

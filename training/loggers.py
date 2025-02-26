@@ -1,12 +1,15 @@
 import wandb
-import torch
 import os
-from PIL import Image
 from collections import defaultdict
 
 class WandbLogger:
     def __init__(self, config):
-        wandb.login(key=os.environ['WANDB_KEY'].strip())
+        if 'wandb_key' in config['exp']:
+            key = config['exp']['wandb_key']
+        else:
+            key = os.environ['WANDB_KEY'].strip()
+
+        wandb.login(key=key)
         self.wandb_args = {
                 "id": wandb.util.generate_id(),
                 "project": config['exp']['project_name'],
@@ -22,13 +25,13 @@ class WandbLogger:
         wandb.log(values_dict, step=step)
 
     @staticmethod
-    def log_table(table_name: str, columns: list, data: list):
+    def log_table(table_name: str, columns: list, data: list, step: int):
         table = wandb.Table(columns=columns)
 
         for row in data:
             table.add_data(*row)
 
-        wandb.log({table_name: table})
+        wandb.log({table_name: table}, step=step)
 
 def log_if_enabled(func):
     def wrapper(self, *args, **kwargs):
@@ -55,10 +58,10 @@ class TrainingLogger:
         self.logger.log_values(val_metrics, epoch)
 
     @log_if_enabled
-    def log_translations(self, src_texts, dst_texts_references, dst_texts_hypotheses):
+    def log_translations(self, src_texts, dst_texts_references, dst_texts_hypotheses, step):
         columns = ["Source Text", "Reference Translation", "Hypothesis Translation"]
         data = list(zip(src_texts, dst_texts_references, dst_texts_hypotheses))
-        self.logger.log_table("translation_samples", columns, data)
+        self.logger.log_table("translation_samples", columns, data, step)
 
     @log_if_enabled
     def update_losses(self, losses_dict):
