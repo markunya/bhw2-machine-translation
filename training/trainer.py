@@ -4,7 +4,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from training.loggers import TrainingLogger
 from models.models import translators_registry
-from datasets.datasets import datasets_registry
+from datasets.datasets import Lang2LangDataset, LangDataset
 from metrics.metrics import metrics_registry
 from training.optimizers import optimizers_registry
 from training.schedulers import schedulers_registry
@@ -13,6 +13,7 @@ from utils.data_utils import build_vocab
 
 class TranslatorTrainer:
     def __init__(self, config):
+
         self.config = config
         self.device = config['exp']['device']
         self.epoch = None
@@ -43,16 +44,19 @@ class TranslatorTrainer:
 
     def setup_translator(self):
         self.translator = translators_registry[self.config['train']['translator']](
+            src_vocab_size=len(self.src_vocab),
+            tgt_vocab_size=len(self.tgt_vocab),
+            max_len=self.config['data']['max_len'],
             **self.config['train']['translator_args']
         ).to(self.device)
 
         if self.config['checkpoint_path']:
             checkpoint = torch.load(self.config['checkpoint_path'])
-            self.classifier.load_state_dict(checkpoint['translator_state'])
+            self.translator.load_state_dict(checkpoint['translator_state'])
 
     def setup_optimizers(self):
         self.optimizer = optimizers_registry[self.config['train']['optimizer']](
-            self.classifier.parameters(), **self.config['train']['optimizer_args']
+            self.translator.parameters(), **self.config['train']['optimizer_args']
         )
 
         self.scheduler = schedulers_registry[self.config['train']['scheduler']](
@@ -82,13 +86,13 @@ class TranslatorTrainer:
         self.logger = TrainingLogger(self.config)
 
     def setup_trainval_datasets(self):
-        self.train_dataset = datasets_registry[self.config['data']['trainval_dataset']](
+        self.train_dataset = Lang2LangDataset(
             self.config['data']['train_src_texts_file_path'],
             self.config['data']['train_tgt_texts_file_path'],
             self.src_vocab,
             self.tgt_vocab
         )
-        self.val_dataset = datasets_registry[self.config['data']['trainval_dataset']](
+        self.val_dataset = Lang2LangDataset(
             self.config['data']['val_src_texts_file_path'],
             self.config['data']['val_tgt_texts_file_path'],
             self.src_vocab,
@@ -96,14 +100,14 @@ class TranslatorTrainer:
         )
 
     def setup_test_data(self):
-        self.test_dataset = datasets_registry[self.config['data']['test_dataset']](
+        self.test_dataset = LangDataset(
             self.config['data']['inf_texts_file_path'],
             self.src_vocab
         )
         
         self.test_dataloader = DataLoader(
             self.test_dataset,
-            batch_size=self.config['inference']['test_batch_size'],
+            batch_size=1,
             multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
             num_workers=self.config['data']['workers'],
             collate_fn=self.test_dataset.collate_fn,
@@ -118,7 +122,7 @@ class TranslatorTrainer:
             multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
             num_workers=self.config['data']['workers'],
             collate_fn=self.train_dataset.collate_fn,
-            pin_memory=True,
+            pin_memory=True
         )
 
     def setup_val_dataloader(self):
@@ -128,7 +132,7 @@ class TranslatorTrainer:
             multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
             num_workers=self.config['data']['workers'],
             collate_fn=self.val_dataset.collate_fn,
-            pin_memory=True,
+            pin_memory=True
         )
 
     def setup_dataloaders(self):
@@ -172,6 +176,8 @@ class TranslatorTrainer:
                     
                     running_loss = running_loss * 0.9 + losses_dict['total_loss'].item() * 0.1
                     pbar.set_postfix({"loss": running_loss})
+            
+            self.scheduler.step()
 
             self.logger.log_train_losses(self.epoch)
             self.setup_train_dataloader()
@@ -185,15 +191,6 @@ class TranslatorTrainer:
             if self.epoch % checkpoint_epoch == 0:
                 self.save_checkpoint()
 
-    def _step_scheduler(self):
-        step = (self.scheduler.reduce_time == 'step')
-        epoch = (self.scheduler.reduce_time == 'epoch') \
-                and (self.step % len(self.train_dataloader) == 0)
-        period = (self.scheduler.reduce_time == 'period') \
-                and (self.step % self.scheduler.period == 0)
-        if step or epoch or period:
-            self.scheduler.step()
-
     def train_step(self, batch):
         self.to_train()
         self.optimizer.zero_grad()
@@ -203,14 +200,13 @@ class TranslatorTrainer:
 
         logits = self.translator(src_indices, tgt_indices)
 
-        tgt_out = tgt_indices[1:, :]
+        tgt_out = tgt_indices[:,1:]
         loss_dict = self.loss_builder.calculate_loss(
-            pred_logits=logits,
-            target=tgt_out
+            pred_logits=logits.reshape(-1, logits.shape[-1]),
+            target=tgt_out.reshape(-1)
         )
 
         self.optimizer.step()
-        self._step_scheduler()
 
         return loss_dict
 

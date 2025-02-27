@@ -4,16 +4,13 @@ from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from utils.data_utils import PAD_IDX
 
-datasets_registry = ClassRegistry()
-
-@datasets_registry.add_to_registry(name='lang_dataset')
 class LangDataset(Dataset):
     def __init__(self, texts_path, vocab):
         self.data = []
         with open(texts_path, "r", encoding="utf-8") as texts_file:
             for line in texts_file:
                 text = line.strip()
-                indices = [vocab['<bos>']] + text.split(' ') + [vocab['<eos>']]
+                indices = [vocab['<bos>']] + vocab.lookup_indices(text.split(' ')) + [vocab['<eos>']]
                 tokens = f'<bos> {text} <eos>' 
                 self.data.append({
                     'text': text,
@@ -40,10 +37,14 @@ class LangDataset(Dataset):
             result['tokens'].append(item['tokens'])
             result['indices'].append(torch.tensor(item['indices'], dtype=torch.long))
 
-        result['indices'] = pad_sequence(result['indices'], padding_value=PAD_IDX)
+        result['indices'] = pad_sequence(
+            result['indices'],
+            padding_value=PAD_IDX,
+            batch_first=True
+        )
+        
         return result
-    
-@datasets_registry.add_to_registry(name='lang2lang_dataset')
+
 class Lang2LangDataset(Dataset):
     def __init__(self, src_texts_path, tgt_texts_path, src_vocab, tgt_vocab):
         self.src_dataset = LangDataset(src_texts_path, src_vocab)
