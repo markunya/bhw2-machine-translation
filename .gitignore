@@ -1,6 +1,7 @@
 venv
 wandb
 checkpoints
+inf_out
 test
 train
 

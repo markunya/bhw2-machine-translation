@@ -9,7 +9,7 @@ from metrics.metrics import metrics_registry
 from training.optimizers import optimizers_registry
 from training.schedulers import schedulers_registry
 from training.losses import LossBuilder
-from utils.data_utils import build_vocab
+from utils.data_utils import build_vocab, EOS_IDX
 
 class TranslatorTrainer:
     def __init__(self, config):
@@ -107,7 +107,7 @@ class TranslatorTrainer:
         
         self.test_dataloader = DataLoader(
             self.test_dataset,
-            batch_size=1,
+            batch_size=self.config["inference"]["test_batch_size"],
             multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
             num_workers=self.config['data']['workers'],
             collate_fn=self.test_dataset.collate_fn,
@@ -139,7 +139,25 @@ class TranslatorTrainer:
         self.setup_train_dataloader()
         self.setup_val_dataloader()
 
-    def gen_and_log_samples(self):
+    def _get_translation_from_gen_indices(self, src_indices, gen_indices_batch):
+        src_indices = src_indices.tolist()
+        gen_indices_batch = gen_indices_batch.tolist()
+        translations_batch = []
+        for indices, src in zip(gen_indices_batch, src_indices):
+            cutted = []
+            for idx in indices[1:]:
+                if idx == EOS_IDX or len(cutted) > len(src) + 5:
+                    break
+                cutted.append(idx)
+
+            translations_batch.append(
+                " ".join(self.tgt_vocab.lookup_tokens(cutted))
+            )
+
+        return translations_batch
+
+
+    def gen_and_log_samples(self, epoch):
         src_texts = []
         tgt_texts = []
 
@@ -147,13 +165,15 @@ class TranslatorTrainer:
             batch = self.val_dataset[i]
             src_texts.append(batch['src']['text'])
             tgt_texts.append(batch['tgt']['text'])
-        
-        gen_indices_batch = self.translator.inference(batch['src']['indices']).tolist()
-        gen_texts = [
-            " ".join(self.src_vocab.lookup_tokens(gen_indices))
-               for gen_indices in gen_indices_batch
-            ]
-        self.logger.log_translations(src_texts, tgt_texts, gen_texts)
+
+        gen_indices_batch = self.translator.inference(
+            torch.tensor(batch['src']['indices']).unsqueeze(0).to(self.device)
+        )
+        gen_texts = self._get_translation_from_gen_indices(
+            torch.tensor([batch['src']['indices']]), gen_indices_batch
+        )
+
+        self.logger.log_translations(src_texts, tgt_texts, gen_texts, epoch)
 
     def training_loop(self):
         num_epochs = self.config['train']['epochs']
@@ -180,10 +200,9 @@ class TranslatorTrainer:
             self.scheduler.step()
 
             self.logger.log_train_losses(self.epoch)
-            self.setup_train_dataloader()
             val_metrics_dict = self.validate()
 
-            self.gen_and_log_samples()
+            self.gen_and_log_samples(self.epoch)
                 
             if val_metrics_dict is not None:
                 self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
@@ -205,6 +224,7 @@ class TranslatorTrainer:
             pred_logits=logits.reshape(-1, logits.shape[-1]),
             target=tgt_out.reshape(-1)
         )
+        loss_dict['total_loss'].backward()
 
         self.optimizer.step()
 
@@ -218,6 +238,23 @@ class TranslatorTrainer:
         run_name = self.config['exp']['run_name']
         torch.save(checkpoint, os.path.join(self.config['train']['checkpoints_dir'],
                                             f'checkpoint_{run_name}_{self.epoch}.pth'))
+        
+    def _validate_impl(self, iter, metrics_dict, num_iters, prefix):
+        for metric_name, _ in self.metrics:
+            metrics_dict[f'{prefix}_{metric_name}'] = 0
+
+        for i in range(num_iters):
+            batch = next(iter)
+
+            src_indices = batch['src']['indices'].to(self.device)
+            real_translation = batch['tgt']['text']
+            pred_indices = self.translator.inference(src_indices)
+
+            gen_translations = self._get_translation_from_gen_indices(src_indices, pred_indices)
+
+            for metric_name, metric in self.metrics:
+                metrics_dict[f'{prefix}_{metric_name}'] += metric(gen_translations, real_translation) / num_iters
+
 
     @torch.no_grad()
     def validate(self):
@@ -227,35 +264,11 @@ class TranslatorTrainer:
         self.to_eval()
 
         metrics_dict = {}
-
-        for metric_name, _ in self.metrics:
-            metrics_dict['train_' + metric_name] = 0
-            metrics_dict['val_' + metric_name] = 0
-
-        train_iter = iter(self.train_dataloader)
-        val_iter = iter(self.val_dataloader)
-
         num_batches = min(len(self.train_dataloader), len(self.val_dataloader))
-
-        for _ in range(num_batches):
-            train_batch = next(train_iter)
-            val_batch = next(val_iter)
-
-            train_src_indices = train_batch['src']['indices'].to(self.device)
-            val_src_indices = val_batch['src']['indices'].to(self.device)
-
-            train_real_translation = train_batch['tgt']['text']
-            val_real_translation = val_batch['tgt']['text']
-            train_gen_translation = self.translator.inference(train_src_indices)
-            val_gen_translation = self.translator.inference(val_src_indices)
-
-            for metric_name, metric in self.metrics:
-                metrics_dict['train_' + metric_name] += metric(train_gen_translation, train_real_translation) / num_batches
-                metrics_dict['val_' + metric_name] += metric(val_gen_translation, val_real_translation) / num_batches
-
+        self._validate_impl(iter(self.val_dataloader), metrics_dict, num_iters=num_batches, prefix='val')
+        self._validate_impl(iter(self.train_dataloader), metrics_dict, num_iters=num_batches, prefix='train')
+        
         print('Metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
-        self.setup_val_dataloader()
-        self.setup_train_dataloader()
 
         return metrics_dict
 
@@ -263,4 +276,21 @@ class TranslatorTrainer:
     @torch.no_grad()
     def inference(self):
         self.to_eval()
-        raise NotImplementedError
+        run_name = self.config['exp']['run_name']
+
+        out_path = os.path.join(
+            self.config['inference']['output_dir'],
+            f'inf_out_{run_name}.txt'
+        )
+
+        translations = []
+        with tqdm(self.test_dataloader, desc=f"Inference progress", unit="batch") as pbar:
+            for batch in pbar:
+                src_indices = batch['indices'].to(self.device)
+                pred_indices = self.translator.inference(src_indices)
+
+                gen_translations = self._get_translation_from_gen_indices(src_indices, pred_indices)
+                translations.extend(gen_translations)
+
+        with open(out_path, mode='w', encoding='utf-8') as file:
+            file.write("\n".join(translations))

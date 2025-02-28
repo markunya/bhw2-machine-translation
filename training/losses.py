@@ -1,7 +1,4 @@
-import torch
 from torch import nn
-
-from torch.nn import functional as F
 from utils.class_registry import ClassRegistry
 from utils.data_utils import PAD_IDX
 

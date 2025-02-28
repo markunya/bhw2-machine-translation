@@ -1,5 +1,4 @@
 import torch
-import torchtext
 from torch import nn
 from utils.data_utils import BOS_IDX, EOS_IDX, PAD_IDX
 import torch.nn.functional as F
@@ -49,8 +48,9 @@ class TransformerTranslator(nn.Module):
             num_decoder_layers,
             emb_size,
             nhead,
-            dim_feedforward = 512,
-            dropout_prob = 0.1
+            dim_feedforward = 256,
+            dropout_prob = 0.1,
+            beam_size=1
         ):
 
         super().__init__()
@@ -66,6 +66,7 @@ class TransformerTranslator(nn.Module):
         self.gen_layer = nn.Linear(emb_size, tgt_vocab_size)
 
         self.max_len = max_len
+        self.beam_size = beam_size
 
         pos_emb_kwargs = dict(
             emb_size=emb_size,
@@ -111,6 +112,7 @@ class TransformerTranslator(nn.Module):
         
         src_emb = self.src_tok_emb(src_indices)
         tgt_emb = self.tgt_tok_emb(tgt_input)
+
         outs = self.transformer(
                     src_emb, tgt_emb, src_mask, tgt_mask, None,
                     src_padding_mask, tgt_padding_mask, src_padding_mask
@@ -118,14 +120,20 @@ class TransformerTranslator(nn.Module):
         
         return self.gen_layer(outs)
     
-    
-    def inference(self, src_indices):
+    def inference(self, src_indices, beam_size=None):
+        if beam_size is None:
+            beam_size = self.beam_size
+
         device = next(self.parameters()).device
         
+        src_indices.to(device)
+        batch_size = src_indices.shape[0]
         num_tokens = src_indices.shape[1]
-        src_mask = (torch.zeros(num_tokens, num_tokens)).type(torch.bool)
+        src_mask = (torch.zeros(num_tokens, num_tokens)).type(torch.bool).to(device)
         memory = self.transformer.encoder(self.src_tok_emb(src_indices), src_mask)
-        pred_indices = torch.ones(1, 1).fill_(BOS_IDX).type(torch.long).to(device)
+        pred_indices = torch.ones(batch_size, 1).fill_(BOS_IDX).type(torch.long).to(device)
+
+        num_eos = 0
 
         for _ in range(self.max_len-1):
             memory = memory.to(device)
@@ -136,14 +144,14 @@ class TransformerTranslator(nn.Module):
 
             prob = self.gen_layer(out[:, -1])
             _, next_word = torch.max(prob, dim=1)
-            next_word = next_word.item()
 
             pred_indices = torch.cat([
                 pred_indices,
-                torch.ones(1, 1).type_as(src_indices.data).fill_(next_word)
+                next_word.unsqueeze(1)
             ], dim=1)
 
-            if next_word == EOS_IDX:
+            num_eos += (next_word == EOS_IDX).sum().item()
+            if num_eos == batch_size:
                 break
 
         return pred_indices

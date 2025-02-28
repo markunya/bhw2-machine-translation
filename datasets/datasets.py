@@ -1,5 +1,4 @@
 import torch
-from utils.class_registry import ClassRegistry
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from utils.data_utils import PAD_IDX

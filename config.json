@@ -3,8 +3,7 @@
         "project_name": "dl_bhw_2",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": false,
-        "wandb_key": "5312fc1a5d4cb4573284fb1fdc2337734e241197",
+        "use_wandb": true,
         "log_num_samples": 10
     },
     "data": {
@@ -14,45 +13,48 @@
         "val_tgt_texts_file_path": "datasets/data/val.de-en.en",
         "inf_texts_file_path": "datasets/data/test1.de-en.de",
 
-        "vocab_min_freq": 1,
+        "vocab_min_freq": 10,
         "max_len": 100,
 
         "train_batch_size": 64,
         "val_batch_size": 64,
         "workers": 4
     },
-    "checkpoint_path": null,
+    "checkpoint_path": "checkpoints/checkpoint_label_smooth_10.pth",
     "inference": {
-        "output_dir": "./"
+        "output_dir": "./inf_out/",
+        "test_batch_size": 64
     },
     "train": {
         "translator": "transformer",
         "translator_args": {
-            "emb_size": 512,
+            "emb_size": 128,
             "nhead": 8,
-            "num_encoder_layers": 3,
-            "num_decoder_layers": 3
+            "num_encoder_layers": 4,
+            "num_decoder_layers": 4
         },
         "optimizer": "adamW",
         "optimizer_args": {
-            "lr": 0.0001
+            "lr": 0.001
         },
-        "scheduler": "multi_step",
+        "scheduler": "exponential",
         "scheduler_metric": "bleu",
         "scheduler_args": {
-            "milestones": [6],
-            "gamma": 0.1
+            "gamma": 0.8
         },
         "val_metrics": [
             "bleu"
         ],
-        "epochs": 8,
-        "checkpoint_epoch": 8,
+        "epochs": 10,
+        "checkpoint_epoch": 10,
         "checkpoints_dir": "./checkpoints"
     },
     "losses": {
         "cross_entropy_loss": {
-            "coef": 1.0
+            "coef": 1.0,
+            "args": {
+                "label_smoothing": 0.1
+            }
         }
     }
 }
