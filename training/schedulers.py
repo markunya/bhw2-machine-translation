@@ -13,9 +13,10 @@ class WarmUpScheduler(LambdaLR):
         self.base_scheduler = base_scheduler
         self.warmup_steps = warmup_steps
         self.finished_warmup = False
-        self.current_step = 0
+        self.current_step = 1
 
         def lr_lambda(current_step):
+            current_step += 1
             if current_step <= warmup_steps:
                 if warmup_curve == 'linear':
                     return current_step / max(1, warmup_steps)

@@ -3,7 +3,7 @@
         "project_name": "dl_bhw_2",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": true,
+        "use_wandb": false,
         "log_num_samples": 10
     },
     "data": {
@@ -16,37 +16,37 @@
         "vocab_min_freq": 10,
         "max_len": 100,
 
-        "train_batch_size": 64,
-        "val_batch_size": 64,
+        "train_batch_size": 32,
+        "val_batch_size": 32,
         "workers": 4
     },
-    "checkpoint_path": "checkpoints/checkpoint_label_smooth_10.pth",
+    "checkpoint_path": null,
     "inference": {
         "output_dir": "./inf_out/",
-        "test_batch_size": 64
+        "test_batch_size": 16
     },
     "train": {
         "translator": "transformer",
         "translator_args": {
-            "emb_size": 128,
+            "emb_size": 256,
             "nhead": 8,
-            "num_encoder_layers": 4,
-            "num_decoder_layers": 4
+            "num_encoder_layers": 8,
+            "num_decoder_layers": 8
         },
         "optimizer": "adamW",
         "optimizer_args": {
             "lr": 0.001
         },
         "scheduler": "exponential",
-        "scheduler_metric": "bleu",
         "scheduler_args": {
-            "gamma": 0.8
+            "gamma": 0.9,
+            "warmup_steps": 3
         },
         "val_metrics": [
             "bleu"
         ],
-        "epochs": 10,
-        "checkpoint_epoch": 10,
+        "epochs": 25,
+        "checkpoint_epoch": 25,
         "checkpoints_dir": "./checkpoints"
     },
     "losses": {

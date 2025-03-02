@@ -7,6 +7,13 @@ def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
 
+def tensor_topk(tensor, k, dim=-1):
+    flat_tensor = tensor.flatten()
+    indices = torch.topk(flat_tensor, k=k, dim=dim).indices
+    indices = indices[torch.argsort(-flat_tensor[indices])]
+    positions = [torch.unravel_index(idx, tensor.shape) for idx in indices]
+    return positions
+
 def setup_seed(seed):
     random.seed(seed)                
     np.random.seed(seed)

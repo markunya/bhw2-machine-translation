@@ -7,16 +7,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str, required=True)
-    parser.add_argument("--run_name", type=str, required=True)
     args = parser.parse_args()
     config_path = args.config_path
         
     config = read_json_file(config_path)
     setup_seed(config['exp']['seed'])
-    config['exp']['run_name'] = args.run_name
 
     trainer = TranslatorTrainer(config)
 
-    trainer.setup_train()
-    trainer.training_loop()
+    trainer.setup_validation()
+    metrics_dict = {}
+    num_batches = len(trainer.val_dataloader)
+    trainer._validate_impl(iter(trainer.val_dataloader), metrics_dict, num_iters=num_batches, prefix='val')
+        
+    print('Metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
     

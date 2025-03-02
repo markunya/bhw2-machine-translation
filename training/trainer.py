@@ -29,14 +29,19 @@ class TranslatorTrainer:
             min_freq=self.config['data']['vocab_min_freq']
         )
 
-    def setup(self):
+    def setup_train(self):
         self.setup_translator()
         self.setup_optimizers()
         self.setup_losses()
         self.setup_metrics()
         self.setup_logger()
-        self.setup_trainval_datasets()
-        self.setup_dataloaders()
+        self.setup_train_data()
+        self.setup_val_data
+
+    def setup_validation(self):
+        self.setup_translator()
+        self.setup_metrics()
+        self.setup_val_data()
 
     def setup_inference(self):
         self.setup_translator()
@@ -85,18 +90,39 @@ class TranslatorTrainer:
     def setup_logger(self):
         self.logger = TrainingLogger(self.config)
 
-    def setup_trainval_datasets(self):
+    def setup_train_data(self):
         self.train_dataset = Lang2LangDataset(
             self.config['data']['train_src_texts_file_path'],
             self.config['data']['train_tgt_texts_file_path'],
             self.src_vocab,
             self.tgt_vocab
         )
+
+        self.train_dataloader = DataLoader(
+            self.train_dataset,
+            batch_size=self.config['data']['train_batch_size'],
+            shuffle=True,
+            multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
+            num_workers=self.config['data']['workers'],
+            collate_fn=self.train_dataset.collate_fn,
+            pin_memory=True
+        ) 
+
+    def setup_val_data(self):
         self.val_dataset = Lang2LangDataset(
             self.config['data']['val_src_texts_file_path'],
             self.config['data']['val_tgt_texts_file_path'],
             self.src_vocab,
             self.tgt_vocab
+        )
+
+        self.val_dataloader = DataLoader(
+            self.val_dataset,
+            batch_size=self.config['data']['val_batch_size'],
+            multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
+            num_workers=self.config['data']['workers'],
+            collate_fn=self.val_dataset.collate_fn,
+            pin_memory=True
         )
 
     def setup_test_data(self):
@@ -113,31 +139,6 @@ class TranslatorTrainer:
             collate_fn=self.test_dataset.collate_fn,
             pin_memory=True,
         )
-    
-    def setup_train_dataloader(self):
-        self.train_dataloader = DataLoader(
-            self.train_dataset,
-            batch_size=self.config['data']['train_batch_size'],
-            shuffle=True,
-            multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
-            num_workers=self.config['data']['workers'],
-            collate_fn=self.train_dataset.collate_fn,
-            pin_memory=True
-        )
-
-    def setup_val_dataloader(self):
-        self.val_dataloader = DataLoader(
-            self.val_dataset,
-            batch_size=self.config['data']['val_batch_size'],
-            multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
-            num_workers=self.config['data']['workers'],
-            collate_fn=self.val_dataset.collate_fn,
-            pin_memory=True
-        )
-
-    def setup_dataloaders(self):
-        self.setup_train_dataloader()
-        self.setup_val_dataloader()
 
     def _get_translation_from_gen_indices(self, src_indices, gen_indices_batch):
         src_indices = src_indices.tolist()
