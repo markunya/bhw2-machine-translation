@@ -3,7 +3,7 @@
         "project_name": "dl_bhw_2",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": true,
+        "use_wandb": false,
         "log_num_samples": 10
     },
     "data": {
@@ -46,6 +46,7 @@
         ],
         "epochs": 6,
         "checkpoint_epoch": 1,
+        "val_epoch": 7,
         "checkpoints_dir": "./checkpoints"
     },
     "losses": {

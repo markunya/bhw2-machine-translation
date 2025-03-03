@@ -176,6 +176,7 @@ class TranslatorTrainer:
     def training_loop(self):
         num_epochs = self.config['train']['epochs']
         checkpoint_epoch = self.config['train']['checkpoint_epoch']
+        val_epoch = self.config['train']['val_epoch']
 
         for self.epoch in range(1, num_epochs + 1):
             running_loss = 0
@@ -198,12 +199,12 @@ class TranslatorTrainer:
             self.scheduler.step()
 
             self.logger.log_train_losses(self.epoch)
-            val_metrics_dict = self.validate()
 
-            self.gen_and_log_samples(self.epoch)
-                
-            if val_metrics_dict is not None:
-                self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
+            if self.epoch % val_epoch == 0:
+                val_metrics_dict = self.validate()
+                self.gen_and_log_samples(self.epoch)
+                if val_metrics_dict is not None:
+                    self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
 
             if self.epoch % checkpoint_epoch == 0:
                 self.save_checkpoint()
