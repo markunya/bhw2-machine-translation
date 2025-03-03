@@ -7,6 +7,7 @@ from torch.optim.lr_scheduler import LambdaLR
 schedulers_registry = ClassRegistry()
 
 WarmUpCurve = Literal['linear', 'convex', 'concave']
+ReduceLrTime = Literal['epoch', 'step', 'period']
 
 class WarmUpScheduler(LambdaLR):
     def __init__(self, optimizer, warmup_steps, warmup_curve, base_scheduler, **kwargs):
@@ -44,8 +45,12 @@ class WarmUpScheduler(LambdaLR):
     
 class BaseScheduler:
     def __init__(self, optimizer, base_scheduler_type,
+                reduce_time: ReduceLrTime, step_period=None,
                 warmup_steps=0, warmup_curve='linear', **kwargs):
         base_scheduler = base_scheduler_type(optimizer, **kwargs)
+        self.reduce_time = reduce_time
+        if reduce_time == 'period':
+            self.period = step_period
 
         if warmup_steps > 0:
             self.scheduler = WarmUpScheduler(optimizer, warmup_steps, warmup_curve, base_scheduler)
@@ -58,11 +63,19 @@ class BaseScheduler:
     def get_last_lr(self):
         return self.scheduler.get_last_lr()
     
+    def state_dict(self):
+        return self.scheduler.state_dict()
+    
+    def load_state_dict(self, *args, **kwargs):
+        return self.scheduler.load_state_dict(*args, **kwargs)
+    
 @schedulers_registry.add_to_registry(name='multi_step')
 class MultiStepScheduler(BaseScheduler):
     def __init__(
             self,
             optimizer,
+            reduce_time: ReduceLrTime,
+            step_period=None,
             warmup_steps=0,
             warmup_curve: WarmUpCurve='linear',
             **kwargs
@@ -70,6 +83,8 @@ class MultiStepScheduler(BaseScheduler):
         super().__init__(
             optimizer,
             MultiStepLR,
+            reduce_time,
+            step_period,
             warmup_steps,
             warmup_curve,
             **kwargs
@@ -80,6 +95,8 @@ class ExponentialScheduler(BaseScheduler):
     def __init__(
             self,
             optimizer,
+            reduce_time: ReduceLrTime,
+            step_period=None,
             warmup_steps=0,
             warmup_curve: WarmUpCurve='linear',
             **kwargs
@@ -87,6 +104,8 @@ class ExponentialScheduler(BaseScheduler):
         super().__init__(
             optimizer,
             ExponentialLR,
+            reduce_time,
+            step_period,
             warmup_steps,
             warmup_curve,
             **kwargs

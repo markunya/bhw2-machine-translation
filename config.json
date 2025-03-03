@@ -39,14 +39,16 @@
         },
         "scheduler": "exponential",
         "scheduler_args": {
-            "gamma": 0.6
+            "gamma": 1.0,
+            "reduce_time": "step"
         },
         "val_metrics": [
             "bleu"
         ],
-        "epochs": 6,
-        "checkpoint_epoch": 1,
-        "val_epoch": 7,
+        "start_step": 1,
+        "steps": 10,
+        "checkpoint_step": 10,
+        "val_step": 300,
         "checkpoints_dir": "./checkpoints"
     },
     "losses": {

@@ -54,8 +54,8 @@ class TrainingLogger:
         self.losses_memory.clear()
 
     @log_if_enabled
-    def log_val_metrics(self, val_metrics: dict, epoch: int):
-        self.logger.log_values(val_metrics, epoch)
+    def log_val_metrics(self, val_metrics: dict, step: int):
+        self.logger.log_values(val_metrics, step)
 
     @log_if_enabled
     def log_translations(self, src_texts, dst_texts_references, dst_texts_hypotheses, step):

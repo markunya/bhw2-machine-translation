@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from training.loggers import TrainingLogger
 from models.models import translators_registry
 from datasets.datasets import Lang2LangDataset, LangDataset
+from datasets.dataloaders import InfiniteLoader
 from metrics.metrics import metrics_registry
 from training.optimizers import optimizers_registry
 from training.schedulers import schedulers_registry
@@ -17,7 +18,7 @@ class TranslatorTrainer:
 
         self.config = config
         self.device = config['exp']['device']
-        self.epoch = None
+        self.step = None
 
         self.log_num_samples = config['exp']['log_num_samples']
 
@@ -54,26 +55,33 @@ class TranslatorTrainer:
             tgt_vocab_size=len(self.tgt_vocab),
             **self.config['train']['translator_args']
         ).to(self.device)
+        tqdm.write('Translator successfully created')
 
-        if self.config['checkpoint_path']:
-            checkpoint = torch.load(self.config['checkpoint_path'])
-            self.translator.load_state_dict(checkpoint['translator_state'])
+        checkpoint_path = self.config['checkpoint_path']
+        if checkpoint_path:
+            checkpoint = torch.load(checkpoint_path)
+            self.translator.load_state_dict(checkpoint['translator_state'], strict=False)
+            tqdm.write(f'State of translator loaded from {checkpoint_path}')
 
     def setup_optimizers(self):
         self.optimizer = optimizers_registry[self.config['train']['optimizer']](
             self.translator.parameters(), **self.config['train']['optimizer_args']
         )
-
         self.scheduler = schedulers_registry[self.config['train']['scheduler']](
             self.optimizer, **self.config['train']['scheduler_args']
         )
+        tqdm.write('Optimizer and scheduler successfully created')
 
-        if self.config['checkpoint_path']:
-            checkpoint = torch.load(self.config['checkpoint_path'])
-            self.optimizer.load_state_dict(checkpoint['optimizer_state'])
+        checkpoint_path = self.config['checkpoint_path']
+        if checkpoint_path:
+            checkpoint = torch.load(checkpoint_path)
+            self.optimizer.load_state_dict(checkpoint['optimizer_state'], strict=False)
+            self.scheduler.load_state_dict(checkpoint['scheduler_state'], strict=False)
+            tqdm.write(f'States of optimizer and scheduler loaded from {checkpoint_path}')
 
     def setup_losses(self):
         self.loss_builder = LossBuilder(self.config['losses'])
+        tqdm.write('Loss builder successfully created')
 
     def to_train(self):
         self.translator.train()
@@ -86,6 +94,7 @@ class TranslatorTrainer:
         for metric_name in self.config['train']['val_metrics']:
             metric = metrics_registry[metric_name]()
             self.metrics.append((metric_name, metric))
+        tqdm.write('Metrics successfully created')
 
     def setup_logger(self):
         self.logger = TrainingLogger(self.config)
@@ -98,15 +107,15 @@ class TranslatorTrainer:
             self.tgt_vocab
         )
 
-        self.train_dataloader = DataLoader(
+        self.train_dataloader = InfiniteLoader(
             self.train_dataset,
             batch_size=self.config['data']['train_batch_size'],
             shuffle=True,
-            multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
             num_workers=self.config['data']['workers'],
             collate_fn=self.train_dataset.collate_fn,
             pin_memory=True
-        ) 
+        )
+        tqdm.write('Data for train successfully prepared')
 
     def setup_val_data(self):
         self.val_dataset = Lang2LangDataset(
@@ -124,6 +133,7 @@ class TranslatorTrainer:
             collate_fn=self.val_dataset.collate_fn,
             pin_memory=True
         )
+        tqdm.write('Data for validation successfully prepared')
 
     def setup_test_data(self):
         self.test_dataset = LangDataset(
@@ -139,6 +149,7 @@ class TranslatorTrainer:
             collate_fn=self.test_dataset.collate_fn,
             pin_memory=True,
         )
+        tqdm.write('Data for inference successfully prepared')
 
     def _get_translation_from_gen_indices(self, gen_indices_batch):
         gen_indices_batch = gen_indices_batch.tolist()
@@ -157,7 +168,7 @@ class TranslatorTrainer:
         return translations_batch
 
 
-    def gen_and_log_samples(self, epoch):
+    def gen_and_log_samples(self, step):
         src_texts = []
         tgt_texts = []
 
@@ -171,48 +182,58 @@ class TranslatorTrainer:
         )
         gen_texts = self._get_translation_from_gen_indices(gen_indices_batch)
 
-        self.logger.log_translations(src_texts, tgt_texts, gen_texts, epoch)
+        self.logger.log_translations(src_texts, tgt_texts, gen_texts, step)
 
-    def training_loop(self):
-        num_epochs = self.config['train']['epochs']
-        checkpoint_epoch = self.config['train']['checkpoint_epoch']
-        val_epoch = self.config['train']['val_epoch']
-
-        for self.epoch in range(1, num_epochs + 1):
-            running_loss = 0
-            epoch_losses = {key: [] for key in self.loss_builder.losses.keys()}
-            
-            current_lr = self.optimizer.param_groups[0]['lr']
-            print(f"Learning Rate at epoch {self.epoch}: {current_lr:.6f}")
-
-            with tqdm(self.train_dataloader, desc=f"Training Epoch {self.epoch}\{num_epochs}", unit="batch") as pbar:
-                for batch in pbar:                   
-                    losses_dict = self.train_step(batch)
-                    
-                    self.logger.update_losses(losses_dict)
-                    for loss_name in epoch_losses.keys():
-                        epoch_losses[loss_name].append(losses_dict[loss_name])
-                    
-                    running_loss = running_loss * 0.9 + losses_dict['total_loss'].item() * 0.1
-                    pbar.set_postfix({"loss": running_loss})
-            
+    def _step_scheduler(self):    
+        step = (self.scheduler.reduce_time == 'step')
+        epoch = (self.scheduler.reduce_time == 'epoch') \
+                    and (self.step % len(self.train_dataloader) == 0)
+        period = (self.scheduler.reduce_time == 'period') \
+                    and (self.step % self.scheduler.period == 0)
+        if step or epoch or period:
             self.scheduler.step()
 
-            self.logger.log_train_losses(self.epoch)
+    def training_loop(self):
+        start_step = self.config['train']['start_step']
+        num_steps = self.config['train']['steps']
+        checkpoint_step = self.config['train']['checkpoint_step']
+        val_step = self.config['train']['val_step']
+        running_loss = 0
 
-            if self.epoch % val_epoch == 0:
-                val_metrics_dict = self.validate()
-                self.gen_and_log_samples(self.epoch)
-                if val_metrics_dict is not None:
-                    self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
+        with tqdm(total=num_steps, desc='Training Progress', unit='step') as progress:
+            for self.step in range(start_step, num_steps + 1):
+                step_losses = {key: [] for key in self.loss_builder.losses.keys()}
+                
+                progress.set_postfix({
+                        "loss": running_loss,
+                        "lr": self.optimizer.param_groups[0]['lr']
+                })
 
-            if self.epoch % checkpoint_epoch == 0:
-                self.save_checkpoint()
+                losses_dict = self.train_step()
+                self._step_scheduler()
+                progress.update(1)
+                
+                self.logger.update_losses(losses_dict)
+                for loss_name in step_losses.keys():
+                    step_losses[loss_name].append(losses_dict[loss_name])
+                    running_loss = running_loss * 0.9 + losses_dict['total_loss'].item() * 0.1
 
-    def train_step(self, batch):
+                self.logger.log_train_losses(self.step)
+
+                if self.step % val_step == 0:
+                    val_metrics_dict = self.validate()
+                    self.gen_and_log_samples(self.step)
+                    if val_metrics_dict is not None:
+                        self.logger.log_val_metrics(val_metrics_dict, step=self.step)
+
+                if self.step % checkpoint_step == 0:
+                    self.save_checkpoint()
+
+    def train_step(self):
         self.to_train()
         self.optimizer.zero_grad()
 
+        batch = next(self.train_dataloader)
         src_indices = batch['src']['indices'].to(self.device)
         tgt_indices = batch['tgt']['indices'].to(self.device)
 
@@ -233,10 +254,11 @@ class TranslatorTrainer:
         checkpoint = {
             'translator_state': self.translator.state_dict(),
             'optimizer_state': self.optimizer.state_dict(),
+            'scheduler_state': self.scheduler.state_dict()
         }
         run_name = self.config['exp']['run_name']
         torch.save(checkpoint, os.path.join(self.config['train']['checkpoints_dir'],
-                                            f'checkpoint_{run_name}_{self.epoch}.pth'))
+                                            f'checkpoint_{run_name}_{self.step}.pth'))
         
     def _validate_impl(self, dataloader, metrics_dict, num_iters, prefix):
         for metric_name, _ in self.metrics:
@@ -268,7 +290,7 @@ class TranslatorTrainer:
         self._validate_impl(self.val_dataloader, metrics_dict, num_iters=num_batches, prefix='val')
         self._validate_impl(self.train_dataloader, metrics_dict, num_iters=num_batches, prefix='train')
         
-        print('Metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
+        tqdm.write(f'Metrics: {", ".join(f"{key}={value}" for key, value in metrics_dict.items())}')
 
         return metrics_dict
 
