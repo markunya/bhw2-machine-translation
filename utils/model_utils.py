@@ -3,6 +3,11 @@ import torch
 import numpy as np
 from torch import nn
 
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
 def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag

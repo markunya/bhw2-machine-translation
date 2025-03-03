@@ -19,11 +19,11 @@ class WarmUpScheduler(LambdaLR):
             current_step += 1
             if current_step <= warmup_steps:
                 if warmup_curve == 'linear':
-                    return current_step / max(1, warmup_steps)
+                    return current_step / max(1, warmup_steps + 1)
                 elif warmup_curve == 'convex':
-                    return (current_step / max(1, warmup_steps))**2
+                    return (current_step / max(1, warmup_steps + 1))**2
                 elif warmup_curve == 'concave':
-                    return (current_step / max(1, warmup_steps))**0.5
+                    return (current_step / max(1, warmup_steps + 1))**0.5
             else:
                 self.finished_warmup = True
                 return 1.0

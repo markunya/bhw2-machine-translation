@@ -44,16 +44,16 @@ class TransformerTranslator(nn.Module):
             self,
             src_vocab_size,
             tgt_vocab_size,
-            max_len,
             #####
             num_encoder_layers,
             num_decoder_layers,
             emb_size,
             nhead,
-            dim_feedforward = 256,
+            dim_feedforward = 512,
             dropout_prob = 0.1,
-            activation='relu',
-            beam_size=1
+            activation='gelu',
+            beam_size=1,
+            pos_emb_max_len=100
         ):
 
         super().__init__()
@@ -69,13 +69,12 @@ class TransformerTranslator(nn.Module):
                                 )
         self.gen_layer = nn.Linear(emb_size, tgt_vocab_size)
 
-        self.max_len = max_len
         self.beam_size = beam_size
 
         pos_emb_kwargs = dict(
             emb_size=emb_size,
             dropout_prob=dropout_prob,
-            max_len=max_len
+            max_len=pos_emb_max_len
         )
         self.src_tok_emb = PositionalEmbedding(
                 src_vocab_size, **pos_emb_kwargs
@@ -98,27 +97,23 @@ class TransformerTranslator(nn.Module):
         tgt_seq_len = tgt_input.shape[1]
 
         tgt_mask = self._generate_square_subsequent_mask(tgt_seq_len)
-        src_mask = torch.zeros(
-            (src_seq_len, src_seq_len),
-            device=self._device()
-        ).type(torch.bool)
 
         src_padding_mask = (src_indices == PAD_IDX)
         tgt_padding_mask = (tgt_input == PAD_IDX)
 
-        return src_mask, tgt_mask, src_padding_mask, tgt_padding_mask
+        return tgt_mask, src_padding_mask, tgt_padding_mask
 
 
     def forward(self, src_indices, tgt_indices):
         tgt_input = tgt_indices[:,:-1]
-        src_mask, tgt_mask, src_padding_mask, tgt_padding_mask \
+        tgt_mask, src_padding_mask, tgt_padding_mask \
                         = self._create_mask(src_indices, tgt_input)
         
         src_emb = self.src_tok_emb(src_indices)
         tgt_emb = self.tgt_tok_emb(tgt_input)
 
         outs = self.transformer(
-                    src_emb, tgt_emb, src_mask, tgt_mask, None,
+                    src_emb, tgt_emb, None, tgt_mask, None,
                     src_padding_mask, tgt_padding_mask, src_padding_mask
                 )
         
@@ -127,16 +122,15 @@ class TransformerTranslator(nn.Module):
     def _device(self):
         return next(self.parameters()).device
     
-    def _beam_update(self, beam_logits, beam_storage, beam_scores):
+    def _beam_update(self, beam_logits, beam_storage):
         device = self._device()
         beam_size = len(beam_logits)  
         batch_size = beam_logits[0].shape[0]
-        vocab_size = beam_logits[0].shape[1]
 
         log_probs = []
         for i in range(beam_size):
             lp = F.log_softmax(beam_logits[i], dim=-1)
-            lp = lp + beam_scores[i].unsqueeze(1)
+            lp = lp + (beam_storage['eos_mask'][i] * beam_storage['scores'][i]).unsqueeze(1)
             log_probs.append(lp)
 
 
@@ -146,67 +140,80 @@ class TransformerTranslator(nn.Module):
         argmaxs = [tensor_topk(scored_perm[b], k=beam_size) 
                 for b in range(batch_size)]
 
-        new_beam_storage = []
-        new_beam_scores = []
+        new_beam_storage = {
+            'scores': [],
+            'eos_mask': [],
+            'candidates': []
+        }
 
         for i in range(beam_size):
-            new_beam_storage.append([])
-            new_beam_scores.append(torch.zeros(batch_size, device=device))
-
+            new_beam_storage['candidates'].append([])
+            new_beam_storage['scores'].append(torch.zeros(batch_size, device=device))
+            new_beam_storage['eos_mask'].append(torch.ones(batch_size, device=device))
 
         for b in range(batch_size):
             top_candidates = argmaxs[b]
             for bs_new_idx, (old_beam_idx, token_idx) in enumerate(top_candidates):
-                old_seq = beam_storage[old_beam_idx][b]
+                old_seq = beam_storage['candidates'][old_beam_idx][b]
                 new_seq = torch.cat([old_seq, 
                                     torch.tensor([token_idx], device=device)], dim=0)
 
-                new_beam_storage[bs_new_idx].append(new_seq)
-                new_beam_scores[bs_new_idx][b] = scored_stacked[old_beam_idx, b, token_idx]
+                new_beam_storage['candidates'][bs_new_idx].append(new_seq)
+                new_beam_storage['scores'][bs_new_idx][b] = scored_stacked[old_beam_idx, b, token_idx]
+
+                new_beam_storage['eos_mask'][bs_new_idx][b] = \
+                    beam_storage['eos_mask'][old_beam_idx][b] * float(token_idx != EOS_IDX)
 
 
         for i in range(beam_size):
-            new_beam_storage[i] = torch.stack(new_beam_storage[i])
+            new_beam_storage['candidates'][i] = torch.stack(new_beam_storage['candidates'][i])
 
-        return new_beam_storage, new_beam_scores
+        return new_beam_storage
 
     @torch.no_grad
-    def inference(self, src_indices, beam_size=None):
+    def inference(self, src_indices, max_len=None, beam_size=None):
         if beam_size is None:
             beam_size = self.beam_size
+        if max_len is None:
+            max_len = src_indices.shape[1] + 5
 
         device = self._device()
     
         src_indices.to(device)
         batch_size = src_indices.shape[0]
-        num_tokens = src_indices.shape[1]
-        src_mask = (torch.zeros(num_tokens, num_tokens)).type(torch.bool).to(device)
-        memory = self.transformer.encoder(self.src_tok_emb(src_indices), src_mask)
+        memory = self.transformer.encoder(self.src_tok_emb(src_indices))
         memory = memory.to(device)
         
-        beam_scores = []
-        beam_storage = []
+        beam_storage = {
+            'scores': [],
+            'eos_mask': [],
+            'candidates': [] 
+        }
+
         for _ in range(beam_size):
-            beam_scores.append(
+            beam_storage['scores'].append(
                 torch.zeros(batch_size).to(device)
             )
-            beam_storage.append(
+            beam_storage['eos_mask'].append(
+                torch.ones(batch_size).to(device)
+            )
+            beam_storage['candidates'].append(
                 torch.ones(batch_size, 1).fill_(BOS_IDX).type(torch.long).to(device)
             )
 
-        for _ in range(self.max_len-1):
+        for _ in range(max_len-1):
             beam_logits = []
             for i in range(beam_size):
                 tgt_mask = (self._generate_square_subsequent_mask(
-                    beam_storage[i].size(1)
+                    beam_storage['candidates'][i].size(1)
                 ).type(torch.bool)).to(device)
                 
-                tgt_emb = self.tgt_tok_emb(beam_storage[i])
+                tgt_emb = self.tgt_tok_emb(beam_storage['candidates'][i])
                 out = self.transformer.decoder(tgt_emb, memory, tgt_mask)
 
                 logits = self.gen_layer(out[:, -1])
                 beam_logits.append(logits)
 
-            beam_storage, beam_scores = self._beam_update(beam_logits, beam_storage, beam_scores)
+            beam_storage = self._beam_update(beam_logits, beam_storage)
 
-        return beam_storage[0]
+        return beam_storage['candidates'][0]

@@ -3,26 +3,26 @@
         "project_name": "dl_bhw_2",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": false,
+        "use_wandb": true,
         "log_num_samples": 10
     },
     "data": {
-        "train_src_texts_file_path": "datasets/data/train.de-en.de",
-        "train_tgt_texts_file_path": "datasets/data/train.de-en.en",
+        "train_src_texts_file_path": "datasets/data/train_small.de-en.de",
+        "train_tgt_texts_file_path": "datasets/data/train_small.de-en.en",
         "val_src_texts_file_path": "datasets/data/val.de-en.de",
         "val_tgt_texts_file_path": "datasets/data/val.de-en.en",
         "inf_texts_file_path": "datasets/data/test1.de-en.de",
 
-        "vocab_min_freq": 10,
-        "max_len": 100,
+        "src_min_freq": 5,
+        "tgt_min_freq": 5,
 
-        "train_batch_size": 32,
-        "val_batch_size": 32,
+        "train_batch_size": 64,
+        "val_batch_size": 64,
         "workers": 4
     },
     "checkpoint_path": null,
     "inference": {
-        "output_dir": "./inf_out/",
+        "output_dir": "./",
         "test_batch_size": 16
     },
     "train": {
@@ -30,8 +30,8 @@
         "translator_args": {
             "emb_size": 256,
             "nhead": 8,
-            "num_encoder_layers": 8,
-            "num_decoder_layers": 8
+            "num_encoder_layers": 1,
+            "num_decoder_layers": 1
         },
         "optimizer": "adamW",
         "optimizer_args": {
@@ -39,14 +39,13 @@
         },
         "scheduler": "exponential",
         "scheduler_args": {
-            "gamma": 0.9,
-            "warmup_steps": 3
+            "gamma": 0.6
         },
         "val_metrics": [
             "bleu"
         ],
-        "epochs": 25,
-        "checkpoint_epoch": 25,
+        "epochs": 6,
+        "checkpoint_epoch": 1,
         "checkpoints_dir": "./checkpoints"
     },
     "losses": {
