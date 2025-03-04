@@ -3,18 +3,18 @@
         "project_name": "dl_bhw_2",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": false,
+        "use_wandb": true,
         "log_num_samples": 10
     },
     "data": {
-        "train_src_texts_file_path": "datasets/data/train_small.de-en.de",
-        "train_tgt_texts_file_path": "datasets/data/train_small.de-en.en",
+        "train_src_texts_file_path": "datasets/data/train.de-en.de",
+        "train_tgt_texts_file_path": "datasets/data/train.de-en.en",
         "val_src_texts_file_path": "datasets/data/val.de-en.de",
         "val_tgt_texts_file_path": "datasets/data/val.de-en.en",
         "inf_texts_file_path": "datasets/data/test1.de-en.de",
 
         "src_min_freq": 5,
-        "tgt_min_freq": 5,
+        "tgt_min_freq": 3,
 
         "train_batch_size": 64,
         "val_batch_size": 64,
@@ -30,8 +30,9 @@
         "translator_args": {
             "emb_size": 256,
             "nhead": 8,
-            "num_encoder_layers": 1,
-            "num_decoder_layers": 1
+            "num_encoder_layers": 4,
+            "num_decoder_layers": 4,
+            "dim_feedforward": 1024
         },
         "optimizer": "adamW",
         "optimizer_args": {
@@ -39,16 +40,19 @@
         },
         "scheduler": "exponential",
         "scheduler_args": {
-            "gamma": 1.0,
-            "reduce_time": "step"
+            "gamma": 0.991,
+            "reduce_time": "period",
+            "step_period": 200,
+            "warmup_steps": 50
         },
         "val_metrics": [
             "bleu"
         ],
         "start_step": 1,
-        "steps": 10,
-        "checkpoint_step": 10,
-        "val_step": 300,
+        "steps": 100000,
+        "checkpoint_step": 25000,
+        "val_step": 10000,
+        "log_step": 1000,
         "checkpoints_dir": "./checkpoints"
     },
     "losses": {

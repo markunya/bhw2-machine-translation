@@ -4,6 +4,7 @@ checkpoints
 inf_out
 test
 train
+configs
 
 */__pycache__/
 *.out

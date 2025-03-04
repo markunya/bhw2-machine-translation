@@ -110,7 +110,6 @@ class TranslatorTrainer:
         self.train_dataloader = InfiniteLoader(
             self.train_dataset,
             batch_size=self.config['data']['train_batch_size'],
-            shuffle=True,
             num_workers=self.config['data']['workers'],
             collate_fn=self.train_dataset.collate_fn,
             pin_memory=True
@@ -198,6 +197,7 @@ class TranslatorTrainer:
         num_steps = self.config['train']['steps']
         checkpoint_step = self.config['train']['checkpoint_step']
         val_step = self.config['train']['val_step']
+        log_step = self.config['train']['log_step']
         running_loss = 0
 
         with tqdm(total=num_steps, desc='Training Progress', unit='step') as progress:
@@ -218,7 +218,8 @@ class TranslatorTrainer:
                     step_losses[loss_name].append(losses_dict[loss_name])
                     running_loss = running_loss * 0.9 + losses_dict['total_loss'].item() * 0.1
 
-                self.logger.log_train_losses(self.step)
+                if self.step % log_step == 0:
+                    self.logger.log_train_losses(self.step)
 
                 if self.step % val_step == 0:
                     val_metrics_dict = self.validate()
