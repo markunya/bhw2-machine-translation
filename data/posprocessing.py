@@ -4,6 +4,10 @@ from utils.utils import isnumeric
 def drop_unk_bos_eos(gen_indices_batch):
     for i, indices in enumerate(gen_indices_batch):
         cutted = []
+        if len(indices) == 0:
+            gen_indices_batch[i] = cutted
+            continue
+        
         for idx in indices[1:]:
             if idx == IDX.UNK:
                 continue
@@ -45,6 +49,6 @@ def indices2text(src_texts_batch, gen_indices_batch, vocab):
 
 def add_dot(translations_batch):
     for i in range(len(translations_batch)):
-        if translations_batch[i][-1] == '!' or translations_batch[i][-1] == '?':
+        if len(translations_batch[i]) > 0 and (translations_batch[i][-1] == '!' or translations_batch[i][-1] == '?'):
             continue
         translations_batch[i] += ' .'
