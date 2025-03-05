@@ -1,8 +1,7 @@
 import torch
 from torch import nn
-from utils.data_utils import BOS_IDX, EOS_IDX, PAD_IDX
-from utils.model_utils import tensor_topk
-from copy import deepcopy
+from data.vocab_builder import IDX
+from utils.utils import tensor_topk
 import torch.nn.functional as F
 import math
 from utils.class_registry import ClassRegistry
@@ -98,8 +97,8 @@ class TransformerTranslator(nn.Module):
 
         tgt_mask = self._generate_square_subsequent_mask(tgt_seq_len)
 
-        src_padding_mask = (src_indices == PAD_IDX)
-        tgt_padding_mask = (tgt_input == PAD_IDX)
+        src_padding_mask = (src_indices == IDX.PAD)
+        tgt_padding_mask = (tgt_input == IDX.PAD)
 
         return tgt_mask, src_padding_mask, tgt_padding_mask
 
@@ -162,7 +161,7 @@ class TransformerTranslator(nn.Module):
                 new_beam_storage['scores'][bs_new_idx][b] = scored_stacked[old_beam_idx, b, token_idx]
 
                 new_beam_storage['eos_mask'][bs_new_idx][b] = \
-                    beam_storage['eos_mask'][old_beam_idx][b] * float(token_idx != EOS_IDX)
+                    beam_storage['eos_mask'][old_beam_idx][b] * float(token_idx != IDX.EOS)
 
 
         for i in range(beam_size):
@@ -198,7 +197,7 @@ class TransformerTranslator(nn.Module):
                 torch.ones(batch_size).to(device)
             )
             beam_storage['candidates'].append(
-                torch.ones(batch_size, 1).fill_(BOS_IDX).type(torch.long).to(device)
+                torch.ones(batch_size, 1).fill_(IDX.BOS).type(torch.long).to(device)
             )
 
         for _ in range(max_len-1):

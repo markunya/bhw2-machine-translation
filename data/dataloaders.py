@@ -25,3 +25,4 @@ class InfiniteLoader(DataLoader):
             self.dataset_iterator = super().__iter__()
             x = next(self.dataset_iterator)
         return x
+    

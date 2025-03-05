@@ -1,7 +1,17 @@
 import random
 import torch
 import numpy as np
-from torch import nn
+import json
+
+def isnumeric(token):
+    return str.isnumeric(token) \
+        or str.isnumeric("".join(token.split('.'))) \
+        or str.isnumeric("".join(token.split(',')))
+
+def replace_with_num_if_numeric(tokens, num_tok):
+    for i, token in enumerate(tokens):
+        if isnumeric(token):
+            tokens[i] = num_tok
 
 def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
@@ -28,3 +38,15 @@ def setup_seed(seed):
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+def read_json_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            return data
+    except FileNotFoundError:
+        print(f"File '{file_path}' not found.")
+    except json.JSONDecodeError:
+        print(f"Error parsing json: '{file_path}'.")
+    except Exception as e:
+        print(f"Error occured: {e}")

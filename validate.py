@@ -1,7 +1,6 @@
 import argparse
-from utils.model_utils import setup_seed
 from training.trainer import TranslatorTrainer
-from utils.data_utils import read_json_file
+from utils.utils import read_json_file, setup_seed
 
 if __name__ == "__main__":
 

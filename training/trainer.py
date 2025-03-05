@@ -1,17 +1,17 @@
 import os
 import torch
+import data.posprocessing as pp
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from training.loggers import TrainingLogger
 from models.models import translators_registry
-from datasets.datasets import Lang2LangDataset, LangDataset
-from datasets.dataloaders import InfiniteLoader
+from data.datasets import Lang2LangDataset, LangDataset
+from data.dataloaders import InfiniteLoader
 from metrics.metrics import metrics_registry
 from training.optimizers import optimizers_registry
 from training.schedulers import schedulers_registry
 from training.losses import LossBuilder
-from utils.model_utils import seed_worker
-from utils.data_utils import build_vocab, EOS_IDX
+from data.vocab_builder import VocabBuilder, IDX
 
 class TranslatorTrainer:
     def __init__(self, config):
@@ -22,11 +22,16 @@ class TranslatorTrainer:
 
         self.log_num_samples = config['exp']['log_num_samples']
 
-        self.src_vocab = build_vocab(
+        self.drop_bos_eos_unk_logic = config['inference']['drop_bos_eos_unk_logic']
+        self.drop_dot_logic = config['inference']['drop_dot_logic']
+        self.num_logic = config['inference']['num_logic']
+
+        builder = VocabBuilder(use_num=self.num_logic)
+        self.src_vocab = builder.build(
             file_path=self.config['data']['train_src_texts_file_path'],
             min_freq=self.config['data']['src_min_freq']
         )
-        self.tgt_vocab = build_vocab(
+        self.tgt_vocab = builder.build(
             file_path=self.config['data']['train_tgt_texts_file_path'],
             min_freq=self.config['data']['tgt_min_freq']
         )
@@ -104,7 +109,8 @@ class TranslatorTrainer:
             self.config['data']['train_src_texts_file_path'],
             self.config['data']['train_tgt_texts_file_path'],
             self.src_vocab,
-            self.tgt_vocab
+            self.tgt_vocab,
+            drop_dot=self.drop_dot_logic
         )
 
         self.train_dataloader = InfiniteLoader(
@@ -121,7 +127,8 @@ class TranslatorTrainer:
             self.config['data']['val_src_texts_file_path'],
             self.config['data']['val_tgt_texts_file_path'],
             self.src_vocab,
-            self.tgt_vocab
+            self.tgt_vocab,
+            drop_dot=self.drop_dot_logic
         )
 
         self.val_dataloader = DataLoader(
@@ -136,36 +143,32 @@ class TranslatorTrainer:
 
     def setup_test_data(self):
         self.test_dataset = LangDataset(
-            self.config['data']['inf_texts_file_path'],
-            self.src_vocab
+            self.config['data']['test_texts_file_path'],
+            self.src_vocab,
+            drop_dot=self.drop_dot_logic
         )
         
         self.test_dataloader = DataLoader(
             self.test_dataset,
-            batch_size=self.config["inference"]["test_batch_size"],
+            batch_size=self.config["data"]["test_batch_size"],
             multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
             num_workers=self.config['data']['workers'],
             collate_fn=self.test_dataset.collate_fn,
             pin_memory=True,
         )
-        tqdm.write('Data for inference successfully prepared')
+        tqdm.write('Data for test successfully prepared')
 
-    def _get_translation_from_gen_indices(self, gen_indices_batch):
+    def _get_translation_from_gen_indices(self, src_texts_batch, gen_indices_batch):
         gen_indices_batch = gen_indices_batch.tolist()
-        translations_batch = []
-        for indices in gen_indices_batch:
-            cutted = []
-            for idx in indices[1:]:
-                if idx == EOS_IDX:
-                    break
-                cutted.append(idx)
+        if self.drop_bos_eos_unk_logic:
+            pp.drop_unk_bos_eos(gen_indices_batch)
 
-            translations_batch.append(
-                " ".join(self.tgt_vocab.lookup_tokens(cutted))
-            )
+        translations_batch = pp.indices2text(src_texts_batch, gen_indices_batch, self.tgt_vocab)
+
+        if self.drop_dot_logic:
+            pp.add_dot(translations_batch)
 
         return translations_batch
-
 
     def gen_and_log_samples(self, step):
         src_texts = []
@@ -179,7 +182,9 @@ class TranslatorTrainer:
         gen_indices_batch = self.translator.inference(
             torch.tensor(batch['src']['indices']).unsqueeze(0).to(self.device)
         )
-        gen_texts = self._get_translation_from_gen_indices(gen_indices_batch)
+        gen_texts = self._get_translation_from_gen_indices(
+            batch['src']['text'], gen_indices_batch
+        )
 
         self.logger.log_translations(src_texts, tgt_texts, gen_texts, step)
 
@@ -205,8 +210,8 @@ class TranslatorTrainer:
                 step_losses = {key: [] for key in self.loss_builder.losses.keys()}
                 
                 progress.set_postfix({
-                        "loss": running_loss,
-                        "lr": self.optimizer.param_groups[0]['lr']
+                    "loss": running_loss,
+                    "lr": self.optimizer.param_groups[0]['lr']
                 })
 
                 losses_dict = self.train_step()
@@ -273,11 +278,10 @@ class TranslatorTrainer:
             real_translation = batch['tgt']['text']
             pred_indices = self.translator.inference(src_indices)
 
-            gen_translations = self._get_translation_from_gen_indices(pred_indices)
+            gen_translations = self._get_translation_from_gen_indices(batch['src']['text'], pred_indices)
 
             for metric_name, metric in self.metrics:
                 metrics_dict[f'{prefix}_{metric_name}'] += metric(gen_translations, real_translation) / num_iters
-
 
     @torch.no_grad()
     def validate(self):
@@ -295,15 +299,14 @@ class TranslatorTrainer:
 
         return metrics_dict
 
-
     @torch.no_grad()
     def inference(self):
         self.to_eval()
         run_name = self.config['exp']['run_name']
 
         out_path = os.path.join(
-            self.config['inference']['output_dir'],
-            f'inf_out_{run_name}.txt'
+            self.config['test']['output_dir'],
+            f'test_out_{run_name}.txt'
         )
 
         translations = []
@@ -312,7 +315,7 @@ class TranslatorTrainer:
                 src_indices = batch['indices'].to(self.device)
                 pred_indices = self.translator.inference(src_indices)
 
-                gen_translations = self._get_translation_from_gen_indices(pred_indices)
+                gen_translations = self._get_translation_from_gen_indices(batch['text'], pred_indices)
                 translations.extend(gen_translations)
 
         with open(out_path, mode='w', encoding='utf-8') as file:

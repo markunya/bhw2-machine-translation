@@ -1,6 +1,6 @@
 from torch import nn
 from utils.class_registry import ClassRegistry
-from utils.data_utils import PAD_IDX
+from data.vocab_builder import IDX
 
 losses_registry = ClassRegistry()
 
@@ -29,5 +29,5 @@ class LossBuilder:
 
 @losses_registry.add_to_registry(name='cross_entropy_loss')
 class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, *args, ignore_index=PAD_IDX, **kwargs):
+    def __init__(self, *args, ignore_index=IDX.PAD, **kwargs):
         super().__init__(*args, ignore_index=ignore_index, **kwargs)
