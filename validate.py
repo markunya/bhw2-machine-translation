@@ -16,8 +16,6 @@ if __name__ == "__main__":
 
     trainer.setup_validation()
     metrics_dict = {}
-    num_batches = len(trainer.val_dataloader)
-    trainer._validate_impl(iter(trainer.val_dataloader), metrics_dict, num_iters=num_batches, prefix='val')
-        
-    print('Metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
+    trainer.validate()
+
     
