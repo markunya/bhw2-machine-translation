@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from utils.class_registry import ClassRegistry
-from data.vocab_builder import IDX
+from utils.utils import IDX
 
 losses_registry = ClassRegistry()
 

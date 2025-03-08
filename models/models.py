@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import math
-from data.vocab_builder import IDX
+from utils.utils import IDX
 from utils.class_registry import ClassRegistry
 
 translators_registry = ClassRegistry()

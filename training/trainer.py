@@ -25,10 +25,14 @@ class TranslatorTrainer:
         self.log_num_samples = config['exp']['log_num_samples']
 
         self.drop_bos_eos_unk_logic = config['inference']['drop_bos_eos_unk_logic']
-        self.drop_dot_logic = config['inference']['drop_dot_logic']
+        self.break_text_logic = config['inference']['break_text_logic']
         self.num_logic = config['inference']['num_logic']
 
-        builder = VocabBuilder(use_num=self.num_logic)
+        builder = VocabBuilder(
+            use_num=self.num_logic,
+            break_text=self.break_text_logic
+        )
+    
         self.src_vocab = builder.build(
             file_path=self.config['data']['train_src_texts_file_path'],
             min_freq=self.config['data']['src_min_freq']
@@ -39,9 +43,10 @@ class TranslatorTrainer:
         )
 
         self.translate_kwargs = dict(
+            src_vocab=self.src_vocab,
             tgt_vocab=self.tgt_vocab,
             drop_bos_eos_unk_logic=self.drop_bos_eos_unk_logic,
-            drop_dot_logic=self.drop_dot_logic,
+            break_text_logic=self.break_text_logic,
             beam_size=self.config['inference']['beam_size'],
             repetition_penalty=self.config['inference']['repetition_penalty'],
         )
@@ -120,7 +125,8 @@ class TranslatorTrainer:
             self.config['data']['train_tgt_texts_file_path'],
             self.src_vocab,
             self.tgt_vocab,
-            drop_dot=self.drop_dot_logic
+            num_logic=self.num_logic,
+            break_text=self.break_text_logic
         )
 
         self.train_dataloader = InfiniteLoader(
@@ -138,7 +144,7 @@ class TranslatorTrainer:
             self.config['data']['val_tgt_texts_file_path'],
             self.src_vocab,
             self.tgt_vocab,
-            drop_dot=self.drop_dot_logic
+            num_logic=self.num_logic
         )
 
         self.val_dataloader = DataLoader(
@@ -155,7 +161,7 @@ class TranslatorTrainer:
         self.test_dataset = LangDataset(
             self.config['data']['test_texts_file_path'],
             self.src_vocab,
-            drop_dot=self.drop_dot_logic
+            num_logic=self.num_logic
         )
         
         self.test_dataloader = DataLoader(

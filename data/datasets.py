@@ -1,29 +1,41 @@
 import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
-from data.vocab_builder import IDX, idx2str
-from utils.utils import replace_with_num_if_numeric
+from utils.utils import IDX, idx2str
+import utils.utils as utils
+import random
+from tqdm import tqdm
 
 class LangDataset(Dataset):
-    def __init__(self, texts_path, vocab, drop_dot=False, num_logic=False):
+    def __init__(self, texts_path, vocab, remove_separators=False, num_logic=False):
         self.data = []
         with open(texts_path, "r", encoding="utf-8") as texts_file:
             for line in texts_file:
                 text = line.strip()
-                tokens = text.split()
+                self.data.append(self._make_batch_from_text(text, vocab, remove_separators, num_logic))
+                
+    @staticmethod
+    def _make_batch_from_text(text, vocab, remove_separators, num_logic):
+        if remove_separators:
+            texts_arr, _ = utils.break_text(text)
+            text = " ".join(texts_arr)
 
-                if drop_dot and len(tokens) > 0 and tokens[-1] == '.':
-                    tokens.pop()
+        tokens = text.split()
 
-                if num_logic:
-                    replace_with_num_if_numeric(tokens, idx2str(IDX.NUM))
+        if num_logic:
+            utils.replace_with_num_if_numeric(tokens, idx2str(IDX.NUM))
 
-                indices = [vocab[idx2str(IDX.BOS)]] + vocab.lookup_indices(tokens) + [vocab[idx2str(IDX.EOS)]]
-                self.data.append({
-                    'text': text,
-                    'tokens': [idx2str(IDX.BOS)] + vocab.lookup_tokens(vocab.lookup_indices(tokens)) + [idx2str(IDX.EOS)],
-                    'indices': indices
-                })
+        indices = [vocab[idx2str(IDX.BOS)]] \
+                + vocab.lookup_indices(tokens) \
+                + [vocab[idx2str(IDX.EOS)]]
+                    
+        return {
+                'text': text,
+                'indices': indices,
+                'tokens': [idx2str(IDX.BOS)] \
+                            + vocab.lookup_tokens(vocab.lookup_indices(tokens)) \
+                            + [idx2str(IDX.EOS)]
+                }
     
     def __getitem__(self, index):
         return self.data[index]
@@ -59,15 +71,19 @@ class Lang2LangDataset(Dataset):
                 src_vocab,
                 tgt_vocab,
                 sort=True,
-                drop_dot=False,
+                break_text=False,
                 num_logic=False
             ):
-        
+        self.num_logic = num_logic
+        self.break_text = break_text
+        self.src_vocab = src_vocab
+        self.tgt_vocab = tgt_vocab
+
         self.src_dataset = LangDataset(
-            src_texts_path, src_vocab, drop_dot=drop_dot, num_logic=num_logic
+            src_texts_path, src_vocab, remove_separators=break_text, num_logic=num_logic
         )
         self.tgt_dataset = LangDataset(
-            tgt_texts_path, tgt_vocab, drop_dot=drop_dot, num_logic=num_logic
+            tgt_texts_path, tgt_vocab, remove_separators=break_text, num_logic=num_logic
         )
 
         if sort:
@@ -86,9 +102,30 @@ class Lang2LangDataset(Dataset):
             raise ValueError(f'Lengths of datasets don\'t match')
 
     def __getitem__(self, index):
+        src_batch = self.src_dataset[index]
+        tgt_batch = self.tgt_dataset[index]
+        
+        if self.break_text:
+            src_texts_arr, src_separators = utils.break_text(src_batch['text'])
+            tgt_texts_arr, tgt_separators = utils.break_text(tgt_batch['text'])
+            if src_separators == tgt_separators and len(src_texts_arr) == len(tgt_texts_arr):
+                j = random.choice(range(len(src_texts_arr)))
+                src_batch = LangDataset._make_batch_from_text(
+                    text=src_texts_arr[j],
+                    vocab=self.src_vocab,
+                    remove_separators=True,
+                    num_logic=self.num_logic
+                )
+                tgt_batch = LangDataset._make_batch_from_text(
+                    text=tgt_texts_arr[j],
+                    vocab=self.tgt_vocab,
+                    remove_separators=True,
+                    num_logic=self.num_logic
+                )
+
         return {
-            'src': self.src_dataset[index],
-            'tgt': self.tgt_dataset[index]
+            'src': src_batch,
+            'tgt': tgt_batch
         }
 
     def __len__(self):

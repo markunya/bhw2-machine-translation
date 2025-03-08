@@ -1,32 +1,11 @@
 from torchtext.vocab import build_vocab_from_iterator, Vocab
-from utils.utils import replace_with_num_if_numeric
-
-class IDX:
-    UNK = 0
-    PAD = 1
-    BOS = 2
-    EOS = 3    
-    NUM = 4
-
-def idx2str(idx):
-    match idx:
-        case IDX.UNK:
-            return '<unk>'
-        case IDX.PAD:
-            return '<pad>'
-        case IDX.BOS:
-            return '<bos>'
-        case IDX.EOS:
-            return '<eos>'
-        case IDX.NUM:
-            return '<num>'
-        case _:
-            raise ValueError(f'Unsupported idx: {idx}')
+from utils.utils import replace_with_num_if_numeric, IDX, idx2str
 
 class VocabBuilder:            
-    def __init__(self, use_num=False):
+    def __init__(self, use_num=False, break_text=False):
         self.use_num = use_num
-
+        self.break_text = break_text
+        
     def _yield_tokens(self, file_path: str):
         with open(file_path, encoding="utf-8") as f:
             for line in f:

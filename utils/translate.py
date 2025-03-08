@@ -1,10 +1,11 @@
 import torch
 import math
+from tqdm import tqdm
 from torchtext.vocab import Vocab
 from torch import nn
 from typing import List
-from utils.utils import isnumeric
-from data.vocab_builder import IDX
+from utils.utils import isnumeric, break_text, unbreak_text, IDX
+from utils.utils import break_indices, unbreak_indices, translate_separators
 
 def drop_unk_bos_eos(gen_indices: List[int]) -> List[int]:
     result = []
@@ -98,37 +99,51 @@ def beam_search(
         beams = sorted(new_beams, key=lambda x: x[2], reverse=True)[:beam_size]
         if all(finished for _, finished, _ in beams):
             break
-
-    return beams[0][0][0]
+    
+    result = beams[0][0][0]
+    return result
 
 def translate(
         src_text: str,
         src_indices: torch.Tensor,
         translator: nn.Module,
+        src_vocab: Vocab,
         tgt_vocab: Vocab,
 
         drop_bos_eos_unk_logic=True,
-        drop_dot_logic=False,
+        break_text_logic=False,
 
         beam_size=1,
         max_len=None,
         repetition_penalty=1.0,
     ) -> str:
 
-    gen_indices = beam_search(
-        src_indices=src_indices,
-        translator=translator,
-        beam_size=beam_size,
-        max_len=max_len,
-        repetition_penalty=repetition_penalty
-    ).tolist()
+    device = next(translator.parameters()).device
+    src_indices = src_indices.squeeze(0)
+    if break_text_logic:
+        src_indices_arr, src_separators_idxs = break_indices(src_indices.tolist(), src_vocab)
+        src_indices_arr = [torch.tensor(indices, dtype=torch.long, device=device) for indices in src_indices_arr]
+        tgt_separators_idxs = translate_separators(src_separators_idxs, src_vocab, tgt_vocab)
+    else:
+        src_indices_arr = [src_indices]
+        tgt_separators_idxs = []
+
+    gen_indices_arr =[]
+    for src_indices in src_indices_arr:
+        gen_indices = beam_search(
+            src_indices=src_indices.unsqueeze(0),
+            translator=translator,
+            beam_size=beam_size,
+            max_len=max_len,
+            repetition_penalty=repetition_penalty
+        ).tolist()
+        gen_indices_arr.append(gen_indices)
+
+    gen_indices = unbreak_indices(gen_indices_arr, tgt_separators_idxs)
 
     if drop_bos_eos_unk_logic:
-        gen_indices = drop_unk_bos_eos(gen_indices)
+            gen_indices = drop_unk_bos_eos(gen_indices)
 
     gen_text = indices2text(src_text, gen_indices, tgt_vocab)
 
-    if drop_dot_logic:
-        gen_text = add_dot(gen_text)
-    
     return gen_text
