@@ -115,15 +115,19 @@ class Lang2LangDataset(Dataset):
             src_texts_arr, src_separators = utils.break_text(src_batch['text'])
             tgt_texts_arr, tgt_separators = utils.break_text(tgt_batch['text'])
             if src_separators == tgt_separators and len(src_texts_arr) == len(tgt_texts_arr):
-                j = random.choice(range(len(src_texts_arr)))
+                assert len(src_texts_arr) > 0
+
+                begin = random.choice(range(len(src_texts_arr)))
+                end = random.choice(range(begin+1, len(src_texts_arr)+1))
+
                 src_batch = LangDataset._make_batch_from_text(
-                    text=src_texts_arr[j],
+                    text=" ".join(src_texts_arr[begin:end]),
                     vocab=self.src_vocab,
                     remove_separators=True,
                     num_logic=self.num_logic
                 )
                 tgt_batch = LangDataset._make_batch_from_text(
-                    text=tgt_texts_arr[j],
+                    text=" ".join(tgt_texts_arr[begin:end]),
                     vocab=self.tgt_vocab,
                     remove_separators=True,
                     num_logic=self.num_logic

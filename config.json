@@ -22,7 +22,7 @@
     },
     "checkpoint_path": null,
     "test": {
-        "output_dir": "./"
+        "output_dir": "./inf_out/"
     },
     "train": {
         "translator": "transformer",
@@ -31,7 +31,7 @@
             "nhead": 8,
             "num_encoder_layers": 1,
             "num_decoder_layers": 1,
-            "dim_feedforward": 512
+            "dim_feedforward": 1024
         },
         "optimizer": "adamW",
         "optimizer_args": {
