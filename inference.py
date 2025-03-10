@@ -14,6 +14,7 @@ if __name__ == "__main__":
     setup_seed(config['exp']['seed'])
     config['exp']['run_name'] = args.run_name
 
+    assert config['checkpoint_path'] is not None
     trainer = TranslatorTrainer(config)
 
     trainer.setup_inference()
