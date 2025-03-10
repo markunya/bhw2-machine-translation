@@ -4,7 +4,6 @@ from torch.nn.utils.rnn import pad_sequence
 from utils.utils import IDX, idx2str
 import utils.utils as utils
 import random
-from tqdm import tqdm
 
 class LangDataset(Dataset):
     def __init__(self, texts_path, vocab, remove_separators=False, num_logic=False):
@@ -70,8 +69,9 @@ class Lang2LangDataset(Dataset):
                 tgt_texts_path,
                 src_vocab,
                 tgt_vocab,
-                sort=True,
+                sort=False,
                 break_text=False,
+                remove_separators=False,
                 num_logic=False
             ):
         self.num_logic = num_logic
@@ -80,10 +80,16 @@ class Lang2LangDataset(Dataset):
         self.tgt_vocab = tgt_vocab
 
         self.src_dataset = LangDataset(
-            src_texts_path, src_vocab, remove_separators=break_text, num_logic=num_logic
+            src_texts_path,
+            src_vocab,
+            remove_separators=break_text or remove_separators,
+            num_logic=num_logic
         )
         self.tgt_dataset = LangDataset(
-            tgt_texts_path, tgt_vocab, remove_separators=break_text, num_logic=num_logic
+            tgt_texts_path,
+            tgt_vocab,
+            remove_separators=break_text or remove_separators,
+            num_logic=num_logic
         )
 
         if sort:

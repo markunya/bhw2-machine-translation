@@ -27,6 +27,7 @@ class TranslatorTrainer:
         self.drop_bos_eos_unk_logic = config['inference']['drop_bos_eos_unk_logic']
         self.break_text_logic = config['inference']['break_text_logic']
         self.num_logic = config['inference']['num_logic']
+        self.remove_separators_logic = config['inference']['remove_separators_logic']
 
         builder = VocabBuilder(
             use_num=self.num_logic,
@@ -126,6 +127,7 @@ class TranslatorTrainer:
             self.src_vocab,
             self.tgt_vocab,
             num_logic=self.num_logic,
+            remove_separators=self.remove_separators_logic,
             break_text=self.break_text_logic
         )
 
@@ -134,6 +136,7 @@ class TranslatorTrainer:
             batch_size=self.config['data']['train_batch_size'],
             num_workers=self.config['data']['workers'],
             collate_fn=self.train_dataset.collate_fn,
+            shuffle=True,
             pin_memory=True
         )
         tqdm.write('Data for train successfully prepared')
@@ -214,30 +217,40 @@ class TranslatorTrainer:
         checkpoint_step = self.config['train']['checkpoint_step']
         val_step = self.config['train']['val_step']
         log_step = self.config['train']['log_step']
-        running_loss = 0
+        train_running_loss = 0
+        val_running_loss = 0
+        val_iter = iter(self.val_dataloader)
 
         with tqdm(total=num_steps, desc='Training Progress', unit='step') as progress:
             for self.step in range(start_step, num_steps + 1):
                 step_losses = {key: [] for key in self.loss_builder.losses.keys()}
                 
                 progress.set_postfix({
-                    "loss": running_loss,
+                    "train_loss": train_running_loss,
+                    "val_loss": val_running_loss,
                     "lr": self.optimizer.param_groups[0]['lr']
                 })
 
-                losses_dict = self.train_step()
+                train_losses_dict = self.train_step()
                 self._step_scheduler()
                 progress.update(1)
+
+                next_val_step = ((self.step + val_step - 1) // val_step) * val_step
+                if self.step + len(self.val_dataloader) - 1 >= next_val_step:
+                    val_losses_dict = self.val_step(val_iter)
+                    val_running_loss = val_running_loss * 0.9 + val_losses_dict['val_total_loss'].item() * 0.1
+                    self.logger.update_val_losses(val_losses_dict)
                 
-                self.logger.update_losses(losses_dict)
+                self.logger.update_train_losses(train_losses_dict)
                 for loss_name in step_losses.keys():
-                    step_losses[loss_name].append(losses_dict[loss_name])
-                    running_loss = running_loss * 0.9 + losses_dict['total_loss'].item() * 0.1
+                    train_running_loss = train_running_loss * 0.9 + train_losses_dict['train_total_loss'].item() * 0.1
 
                 if self.step % log_step == 0:
                     self.logger.log_train_losses(self.step)
 
                 if self.step % val_step == 0:
+                    self.logger.log_val_losses(self.step)
+                    val_iter = iter(self.val_dataloader)
                     val_metrics_dict = self.validate()
                     self.gen_and_log_samples(self.step)
                     if val_metrics_dict is not None:
@@ -246,6 +259,24 @@ class TranslatorTrainer:
                 if self.step % checkpoint_step == 0:
                     self.save_checkpoint()
 
+    @torch.no_grad()
+    def val_step(self, val_iter):
+        self.to_eval()
+        batch = next(val_iter)
+        src_indices = batch['src']['indices'].to(self.device)
+        tgt_indices = batch['tgt']['indices'].to(self.device)
+            
+        logits = self.translator(src_indices, tgt_indices)
+            
+        tgt_out = tgt_indices[:,1:]
+        val_loss_dict = self.loss_builder.calculate_loss(
+                        pred_logits=logits.reshape(-1, logits.shape[-1]),
+                        target=tgt_out.reshape(-1)
+                    )
+        val_loss_dict = {f'val_{key}':value for key, value in val_loss_dict.items()}
+        return val_loss_dict
+        
+    
     def train_step(self):
         self.to_train()
         self.optimizer.zero_grad()
@@ -261,10 +292,11 @@ class TranslatorTrainer:
             pred_logits=logits.reshape(-1, logits.shape[-1]),
             target=tgt_out.reshape(-1)
         )
-        loss_dict['total_loss'].backward()
+        loss_dict = {f'train_{key}':value for key, value in loss_dict.items()}
+        loss_dict['train_total_loss'].backward()
 
         self.optimizer.step()
-
+        
         return loss_dict
 
     def save_checkpoint(self):
@@ -274,8 +306,16 @@ class TranslatorTrainer:
             'scheduler_state': self.scheduler.state_dict()
         }
         run_name = self.config['exp']['run_name']
-        torch.save(checkpoint, os.path.join(self.config['train']['checkpoints_dir'],
+        checkpoints_dir = self.config['train']['checkpoints_dir']
+    
+        if not os.path.exists(checkpoints_dir):
+            os.makedirs(checkpoints_dir)
+            
+        try:
+            torch.save(checkpoint, os.path.join(self.config['train']['checkpoints_dir'],
                                             f'checkpoint_{run_name}_{self.step}.pth'))
+        except Exception as e:
+            tqdm.write(f'An error occured when saving checkpoint at step {self.step}')
 
     @torch.no_grad()
     def validate(self):
@@ -286,27 +326,40 @@ class TranslatorTrainer:
         metrics_dict = {}
 
         for metric_name, _ in self.metrics:
-            metrics_dict[metric_name] = 0
+            metrics_dict[f'train_{metric_name}'] = 0
+            metrics_dict[f'val_{metric_name}'] = 0
     
-        iterator = iter(self.val_dataloader)
+        val_iterator = iter(self.val_dataloader)
         for _ in tqdm(range(len(self.val_dataloader)), desc=f'Validating', unit='batch'):
-            batch = next(iterator)
-            src_indices = batch['src']['indices'].to(self.device)
-            src_text = batch['src']['text']
-            tgt_translation = batch['tgt']['text']
+            val_batch = next(val_iterator)
+            train_batch = self.train_dataset[random.choice(range(len(self.train_dataset)))]
+            
+            val_src_indices = val_batch['src']['indices'].to(self.device)
+            val_src_text = val_batch['src']['text']
+            val_tgt_translation = val_batch['tgt']['text']
+            train_src_indices = torch.tensor(train_batch['src']['indices'],
+                                            dtype=torch.long).to(self.device)
+            train_src_text = train_batch['src']['text']
+            train_tgt_translation = train_batch['tgt']['text']
 
-            assert len(src_text) == 1
-
-            gen_translation = translate(
-                src_indices=src_indices,
-                src_text=src_text[0],
+            val_gen_translation = translate(
+                src_indices=val_src_indices,
+                src_text=val_src_text[0],
                 translator=self.translator,
                 **self.translate_kwargs
             )
-            tqdm.write(gen_translation)
+            train_gen_translation = translate(
+                src_indices=train_src_indices.unsqueeze(0),
+                src_text=train_src_text,
+                translator=self.translator,
+                **self.translate_kwargs
+            )
 
             for metric_name, metric in self.metrics:
-                metrics_dict[metric_name] += metric([gen_translation], tgt_translation) / len(self.val_dataloader)
+                metrics_dict[f"val_{metric_name}"] \
+                    += metric([val_gen_translation], val_tgt_translation) / len(self.val_dataloader)
+                metrics_dict[f"train_{metric_name}"] \
+                    += metric([train_gen_translation], [train_tgt_translation]) / len(self.val_dataloader)
             
         tqdm.write(f'Metrics: {", ".join(f"{key}={value}" for key, value in metrics_dict.items())}')
 
@@ -316,9 +369,13 @@ class TranslatorTrainer:
     def inference(self):
         self.to_eval()
         run_name = self.config['exp']['run_name']
+        out_dir = self.config['test']['output_dir']
 
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        
         out_path = os.path.join(
-            self.config['test']['output_dir'],
+            out_dir,
             f'test_out_{run_name}.txt'
         )
 

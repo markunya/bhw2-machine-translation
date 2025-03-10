@@ -45,13 +45,20 @@ class TrainingLogger:
         if not self.use_logger:
             return
         self.logger = WandbLogger(config)
-        self.losses_memory = defaultdict(list)
+        self.train_losses_memory = defaultdict(list)
+        self.val_losses_memory = defaultdict(list)
 
     @log_if_enabled
     def log_train_losses(self, epoch: int):
-        averaged_losses = {name: sum(values) / len(values) for name, values in self.losses_memory.items()}
+        averaged_losses = {name: sum(values) / len(values) for name, values in self.train_losses_memory.items()}
         self.logger.log_values(averaged_losses, epoch)
-        self.losses_memory.clear()
+        self.train_losses_memory.clear()
+
+    @log_if_enabled
+    def log_val_losses(self, epoch: int):
+        averaged_losses = {name: sum(values) / len(values) for name, values in self.val_losses_memory.items()}
+        self.logger.log_values(averaged_losses, epoch)
+        self.val_losses_memory.clear()
 
     @log_if_enabled
     def log_val_metrics(self, val_metrics: dict, step: int):
@@ -64,6 +71,11 @@ class TrainingLogger:
         self.logger.log_table("translation_samples", columns, data, step)
 
     @log_if_enabled
-    def update_losses(self, losses_dict):
+    def update_train_losses(self, losses_dict):
         for loss_name, loss_val in losses_dict.items():
-            self.losses_memory[loss_name].append(loss_val)
+            self.train_losses_memory[loss_name].append(loss_val)
+
+    @log_if_enabled
+    def update_val_losses(self, losses_dict):
+        for loss_name, loss_val in losses_dict.items():
+            self.val_losses_memory[loss_name].append(loss_val)

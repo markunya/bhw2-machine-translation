@@ -7,8 +7,8 @@
         "log_num_samples": 10
     },
     "data": {
-        "train_src_texts_file_path": "data/texts/train_small.de-en.de",
-        "train_tgt_texts_file_path": "data/texts/train_small.de-en.en",
+        "train_src_texts_file_path": "data/texts/train.de-en.de",
+        "train_tgt_texts_file_path": "data/texts/train.de-en.en",
         "val_src_texts_file_path": "data/texts/val.de-en.de",
         "val_tgt_texts_file_path": "data/texts/val.de-en.en",
         "test_texts_file_path": "data/texts/test1.de-en.de",
@@ -17,8 +17,6 @@
         "tgt_min_freq": 2,
 
         "train_batch_size": 64,
-        "val_batch_size": 64,
-        "test_batch_size": 16,
 
         "workers": 4
     },
@@ -41,24 +39,29 @@
         },
         "scheduler": "exponential",
         "scheduler_args": {
-            "gamma": 0.91,
+            "gamma": 0.98,
             "reduce_time": "period",
-            "step_period": 200
+            "step_period": 200,
+            "warmup_steps": 25
         },
         "val_metrics": [
             "bleu"
         ],
         "start_step": 1,
-        "steps": 5000,
-        "checkpoint_step": 25000,
+        "steps": 30000,
+        "checkpoint_step": 5000,
         "val_step": 5000,
-        "log_step": 100000,
+        "log_step": 1000,
         "checkpoints_dir": "./checkpoints"
     },
     "inference": {
+        "beam_size": 4,
+        "repetition_penalty": 1,
+
+        "num_logic": true,
+        "break_text_logic": true,
         "drop_bos_eos_unk_logic": true,
-        "drop_dot_logic": true,
-        "num_logic": true
+        "remove_separators_logic": true
     },
     "losses": {
         "cross_entropy_loss": {
