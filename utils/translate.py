@@ -35,11 +35,6 @@ def indices2text(src_text: str, gen_indices: List[int], vocab: Vocab) -> str:
 
     return " ".join(text)
 
-def add_dot(translation: str) -> str:
-    if len(translation) > 0 and (translation[-1] == '!' or translation[-1] == '?'):
-        return translation
-    return translation + ' .'
-
 def apply_repetition_penalty(log_probs, prev_tokens, penalty):
     prev_tokens_flat = [token for seq in prev_tokens for token in seq]
     for token in set(prev_tokens_flat):

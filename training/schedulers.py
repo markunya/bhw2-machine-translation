@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 from utils.class_registry import ClassRegistry
 from torch.optim.lr_scheduler import MultiStepLR
@@ -108,5 +109,36 @@ class ExponentialScheduler(BaseScheduler):
             step_period,
             warmup_steps,
             warmup_curve,
+            **kwargs
+        )
+
+@schedulers_registry.add_to_registry(name='cosine')
+class CosineScheduler(BaseScheduler):
+    def __init__(
+            self,
+            optimizer,
+            reduce_time: ReduceLrTime,
+            step_period=None,
+            warmup_steps=0,
+            warmup_curve: WarmUpCurve = 'linear',
+            total_steps=1000,
+            eta_min=0.0,
+            **kwargs
+        ):
+        def lr_lambda(current_step: int):
+            if current_step >= total_steps:
+                return eta_min
+            progress = current_step / total_steps
+            cosine_decay = 0.5 * (1 + math.cos(math.pi * progress))
+            return eta_min + (1 - eta_min) * cosine_decay
+
+        super().__init__(
+            optimizer=optimizer,
+            base_scheduler_type=LambdaLR,
+            reduce_time=reduce_time,
+            step_period=step_period,
+            warmup_steps=warmup_steps,
+            warmup_curve=warmup_curve,
+            lr_lambda=lr_lambda,
             **kwargs
         )

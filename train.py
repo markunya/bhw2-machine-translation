@@ -3,7 +3,6 @@ from training.trainer import TranslatorTrainer
 from utils.utils import read_json_file, setup_seed
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str, required=True)
     parser.add_argument("--run_name", type=str, required=True)
@@ -12,10 +11,8 @@ if __name__ == "__main__":
         
     config = read_json_file(config_path)
     setup_seed(config['exp']['seed'])
-    config['exp']['run_name'] = args.run_name
 
     trainer = TranslatorTrainer(config)
 
-    trainer.setup_train()
     trainer.training_loop()
     

@@ -7,12 +7,5 @@ if __name__ == "__main__":
     config['exp']['run_name'] = 'main'
 
     trainer = TranslatorTrainer(config)
-
-    trainer.setup_train()
     trainer.training_loop()
-
-    trainer.translator.beam_size = 4
-
-    trainer.setup_test_data()
     trainer.inference()
-    

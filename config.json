@@ -54,14 +54,16 @@
         "log_step": 1000,
         "checkpoints_dir": "./checkpoints"
     },
+    "logics": {
+        "num_idx": true,
+        "remove_separators": false,
+        "break_text": false,
+        "drop_bos_eos_unk": true,
+        "mask_idx": false
+    },
     "inference": {
         "beam_size": 4,
-        "repetition_penalty": 1,
-
-        "num_logic": true,
-        "break_text_logic": true,
-        "drop_bos_eos_unk_logic": true,
-        "remove_separators_logic": true
+        "repetition_penalty": 1
     },
     "losses": {
         "cross_entropy_loss": {

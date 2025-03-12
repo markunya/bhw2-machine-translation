@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import json
 from typing import List, Tuple
-from torchtext.vocab import Vocab
+from torchtext.vocab import build_vocab_from_iterator, Vocab
 
 class IDX:
     UNK = 0
@@ -11,6 +11,7 @@ class IDX:
     BOS = 2
     EOS = 3    
     NUM = 4
+    MSK = 5
 
 def idx2str(idx):
     match idx:
@@ -24,6 +25,8 @@ def idx2str(idx):
             return '<eos>'
         case IDX.NUM:
             return '<num>'
+        case IDX.MSK:
+            return '<msk>'
         case _:
             raise ValueError(f'Unsupported idx: {idx}')
 
@@ -32,12 +35,13 @@ def isnumeric(token: str) -> bool:
         or str.isnumeric("".join(token.split('.'))) \
         or str.isnumeric("".join(token.split(',')))
 
-def replace_with_num_if_numeric(tokens, num_tok):
+def replace_with_num_if_numeric(tokens: List[str]) -> None:
+    num_token = idx2str(IDX.NUM)
     for i, token in enumerate(tokens):
         if isnumeric(token):
-            tokens[i] = num_tok
+            tokens[i] = num_token
 
-SEPARATORS = set(['.',',','!','?',';'])
+SEPARATORS = set(['.', '!', '?'])
 
 def isseparator(token):
     return token in SEPARATORS
@@ -104,6 +108,14 @@ def unbreak_indices(indices_arr: List[List[int]], separators: List[int]) -> List
     result = [IDX.BOS] + [idx for indices in result for idx in indices] + [IDX.EOS]
     return result
 
+def remove_separators_from_tokens(tokens: List[str]) -> List[str]:
+    result = []
+    for token in tokens:
+        if isseparator(token):
+            continue
+        result.append(token)
+    return result
+
 def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
@@ -136,3 +148,21 @@ def read_json_file(file_path):
         print(f"Error parsing json: '{file_path}'.")
     except Exception as e:
         print(f"Error occured: {e}")
+
+def yield_tokens(tokens_arr: List[List[str]]):
+    for tokens in tokens_arr:
+        yield tokens
+
+def build_vocab(tokens_arr: str, min_freq: int = 1) -> Vocab:
+    specials = [
+                idx2str(IDX.UNK),
+                idx2str(IDX.PAD),
+                idx2str(IDX.BOS),
+                idx2str(IDX.EOS),
+                idx2str(IDX.NUM),
+                idx2str(IDX.MSK)
+            ]
+
+    vocab = build_vocab_from_iterator(yield_tokens(tokens_arr), min_freq=min_freq, specials=specials)
+    vocab.set_default_index(vocab[idx2str(IDX.UNK)]) 
+    return vocab
