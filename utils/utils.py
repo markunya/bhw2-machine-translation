@@ -163,6 +163,10 @@ def build_vocab(tokens_arr: str, min_freq: int = 1) -> Vocab:
                 idx2str(IDX.MSK)
             ]
 
-    vocab = build_vocab_from_iterator(yield_tokens(tokens_arr), min_freq=min_freq, specials=specials)
+    vocab = build_vocab_from_iterator(
+        yield_tokens(tokens_arr + [list(SEPARATORS)*min_freq]),
+        min_freq=min_freq,
+        specials=specials
+    )
     vocab.set_default_index(vocab[idx2str(IDX.UNK)]) 
     return vocab
