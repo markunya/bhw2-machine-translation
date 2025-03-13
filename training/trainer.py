@@ -29,13 +29,14 @@ class TranslatorTrainer:
         self.num_idx_logic = config['logics']['num_idx']
         self.remove_separators_logic = config['logics']['remove_separators']
         self.mask_idx_logic = config['logics']['mask_idx']
-        self.num_mcd = config['logics']['num_mcd']
-        assert self.num_mcd >= 1
+
+        num_mcd = config['inference']['num_mcd']
+        assert num_mcd >= 1
         
         self.translate_kwargs = dict(
             drop_bos_eos_unk_logic=self.drop_bos_eos_unk_logic,
             break_text_logic=self.break_text_logic,
-            num_mcd=self.num_mcd,
+            num_mcd=num_mcd,
             beam_size=self.config['inference']['beam_size'],
             repetition_penalty=self.config['inference']['repetition_penalty'],
         )

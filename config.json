@@ -35,11 +35,11 @@
         },
         "optimizer": "adamW",
         "optimizer_args": {
-            "lr": 0.001
+            "lr": 0.0005
         },
         "scheduler": "cosine",
         "scheduler_args": {
-            "total_steps": 400,
+            "total_steps": 250,
             "reduce_time": "period",
             "step_period": 200,
             "warmup_steps": 25
@@ -48,9 +48,9 @@
             "bleu"
         ],
         "start_step": 1,
-        "steps": 80000,
-        "checkpoint_step": 20000,
-        "val_step": 20000,
+        "steps": 50000,
+        "checkpoint_step": 25000,
+        "val_step": 25000,
         "log_step": 1000,
         "checkpoints_dir": "./checkpoints"
     },
@@ -59,12 +59,12 @@
         "remove_separators": false,
         "break_text": true,
         "drop_bos_eos_unk": true,
-        "mask_idx": false,
-        "num_mcd": 5
+        "mask_idx": false
     },
     "inference": {
         "beam_size": 6,
-        "repetition_penalty": 1
+        "repetition_penalty": 1,
+        "num_mcd": 5
     },
     "losses": {
         "cross_entropy_loss": {
