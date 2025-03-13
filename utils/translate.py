@@ -3,7 +3,7 @@ import math
 from tqdm import tqdm
 from torchtext.vocab import Vocab
 from torch import nn
-from typing import List
+from typing import List, Optional
 from utils.utils import isnumeric, break_text, unbreak_text, IDX
 from utils.utils import break_indices, unbreak_indices, translate_separators
 
@@ -107,13 +107,13 @@ def translate(
         src_vocab: Vocab,
         tgt_vocab: Vocab,
 
-        drop_bos_eos_unk_logic=True,
-        break_text_logic=False,
-        num_mcd=1,
+        drop_bos_eos_unk_logic: bool = True,
+        break_text_logic: bool = False,
 
-        beam_size=1,
-        max_len=None,
-        repetition_penalty=1.0,
+        num_mcd: int = 1,
+        beam_size: int = 1,
+        max_len: Optional[int] = None,
+        repetition_penalty: float = 1.0,
     ) -> str:
     
     translator.eval()

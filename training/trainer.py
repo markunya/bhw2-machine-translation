@@ -359,7 +359,11 @@ class TranslatorTrainer:
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
         
-        checkpoint_name = os.path.basename(self.config['checkpoint_path'])[:-4]
+        if self.config['checkpoint_path'] is not None:
+            checkpoint_name = os.path.basename(self.config['checkpoint_path'])[:-4]
+        else:
+            checkpoint_name = 'main'
+            
         out_path = os.path.join(
             out_dir,
             f'test_out_{checkpoint_name}.txt'

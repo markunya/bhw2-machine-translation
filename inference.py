@@ -10,6 +10,7 @@ if __name__ == "__main__":
     config_path = args.config_path
         
     config = read_json_file(config_path)
+    assert config['checkpoint_path'] is not None
     setup_seed(config['exp']['seed'])
 
     assert config['checkpoint_path'] is not None
