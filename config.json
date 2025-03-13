@@ -49,8 +49,8 @@
         ],
         "start_step": 1,
         "steps": 50000,
-        "checkpoint_step": 25000,
-        "val_step": 25000,
+        "checkpoint_step": 10000,
+        "val_step": 10000,
         "log_step": 1000,
         "checkpoints_dir": "./checkpoints"
     },
@@ -64,7 +64,7 @@
     "inference": {
         "beam_size": 6,
         "repetition_penalty": 1,
-        "num_mcd": 5
+        "num_mcd": 1
     },
     "losses": {
         "cross_entropy_loss": {
