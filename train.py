@@ -13,6 +13,7 @@ if __name__ == "__main__":
     setup_seed(config['exp']['seed'])
 
     trainer = TranslatorTrainer(config)
+    trainer.setup_logger()
 
     trainer.training_loop()
     

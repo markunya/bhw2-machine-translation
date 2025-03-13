@@ -45,6 +45,7 @@ def beam_search(
         src_indices: torch.Tensor,
         translator: nn.Module,
         beam_size=1,
+        num_mcd=1,
         max_len=None,
         repetition_penalty=1.0
     ) -> torch.Tensor:
@@ -53,8 +54,9 @@ def beam_search(
         max_len = src_indices.shape[1] + 5
 
     device = next(translator.parameters()).device
-    batch_size = src_indices.size(0)
-    
+
+    bc_zeros = torch.zeros(num_mcd, 1, dtype=torch.long, device=src_indices.device)
+    src_indices = src_indices + bc_zeros
     memory = translator.encode(src_indices)
 
     finished = [False]*beam_size
@@ -68,11 +70,11 @@ def beam_search(
             if seq[0, -1].item() == IDX.EOS or finished:
                 new_beams.append((seq, True, score))
                 continue
-            
+
             logits = translator.decode(
-                seq,
+                seq + bc_zeros,
                 memory,
-            )
+            ).mean(dim=0, keepdim=True)
             
             log_probs = torch.log_softmax(logits[-1, :], dim=-1)
             
@@ -107,12 +109,15 @@ def translate(
 
         drop_bos_eos_unk_logic=True,
         break_text_logic=False,
+        num_mcd=1,
 
         beam_size=1,
         max_len=None,
         repetition_penalty=1.0,
     ) -> str:
-
+    
+    translator.eval()
+    
     device = next(translator.parameters()).device
     src_indices = src_indices.squeeze(0)
     if break_text_logic:
@@ -123,12 +128,17 @@ def translate(
         src_indices_arr = [src_indices]
         tgt_separators_idxs = []
 
+    if num_mcd > 1:
+        translator.src_tok_emb.train()
+        translator.tgt_tok_emb.train()
+
     gen_indices_arr =[]
     for src_indices in src_indices_arr:
         gen_indices = beam_search(
             src_indices=src_indices.unsqueeze(0),
             translator=translator,
             beam_size=beam_size,
+            num_mcd=num_mcd,
             max_len=max_len,
             repetition_penalty=repetition_penalty
         ).tolist()

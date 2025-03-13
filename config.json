@@ -7,39 +7,39 @@
         "log_num_samples": 10
     },
     "data": {
-        "train_src_texts_file_path": "data/texts/train.de-en.de",
-        "train_tgt_texts_file_path": "data/texts/train.de-en.en",
-        "val_src_texts_file_path": "data/texts/val.de-en.de",
-        "val_tgt_texts_file_path": "data/texts/val.de-en.en",
-        "test_texts_file_path": "data/texts/test1.de-en.de",
+        "train_src_texts_file_path": "/data/texts/bhw2-texts/train_broken.de-en.de",
+        "train_tgt_texts_file_path": "/data/texts/bhw2-texts/train_broken.de-en.en",
+        "val_src_texts_file_path": "/data/texts/bhw2-texts/val.de-en.de",
+        "val_tgt_texts_file_path": "/data/texts/bhw2-texts/val.de-en.en",
+        "test_texts_file_path": "/data/texts/bhw2-texts/test1.de-en.de",
 
         "src_min_freq": 2,
         "tgt_min_freq": 2,
 
         "train_batch_size": 64,
 
-        "workers": 4
+        "workers": 0
     },
     "checkpoint_path": null,
     "test": {
-        "output_dir": "./inf_out/"
+        "output_dir": "./"
     },
     "train": {
         "translator": "transformer",
         "translator_args": {
             "emb_size": 256,
             "nhead": 8,
-            "num_encoder_layers": 1,
-            "num_decoder_layers": 1,
+            "num_encoder_layers": 4,
+            "num_decoder_layers": 4,
             "dim_feedforward": 1024
         },
         "optimizer": "adamW",
         "optimizer_args": {
             "lr": 0.001
         },
-        "scheduler": "exponential",
+        "scheduler": "cosine",
         "scheduler_args": {
-            "gamma": 0.98,
+            "total_steps": 400,
             "reduce_time": "period",
             "step_period": 200,
             "warmup_steps": 25
@@ -48,21 +48,22 @@
             "bleu"
         ],
         "start_step": 1,
-        "steps": 30000,
-        "checkpoint_step": 5000,
-        "val_step": 5000,
+        "steps": 80000,
+        "checkpoint_step": 20000,
+        "val_step": 20000,
         "log_step": 1000,
         "checkpoints_dir": "./checkpoints"
     },
     "logics": {
         "num_idx": true,
         "remove_separators": false,
-        "break_text": false,
+        "break_text": true,
         "drop_bos_eos_unk": true,
-        "mask_idx": false
+        "mask_idx": false,
+        "num_mcd": 5
     },
     "inference": {
-        "beam_size": 4,
+        "beam_size": 6,
         "repetition_penalty": 1
     },
     "losses": {

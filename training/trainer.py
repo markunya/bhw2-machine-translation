@@ -26,18 +26,20 @@ class TranslatorTrainer:
 
         self.drop_bos_eos_unk_logic = config['logics']['drop_bos_eos_unk']
         self.break_text_logic = config['logics']['break_text']
-        self.num_idx_logic = config['logics']['num_ix']
+        self.num_idx_logic = config['logics']['num_idx']
         self.remove_separators_logic = config['logics']['remove_separators']
         self.mask_idx_logic = config['logics']['mask_idx']
-
+        self.num_mcd = config['logics']['num_mcd']
+        assert self.num_mcd >= 1
+        
         self.translate_kwargs = dict(
             drop_bos_eos_unk_logic=self.drop_bos_eos_unk_logic,
             break_text_logic=self.break_text_logic,
+            num_mcd=self.num_mcd,
             beam_size=self.config['inference']['beam_size'],
             repetition_penalty=self.config['inference']['repetition_penalty'],
         )
 
-        self._setup_logger()
         self._setup_train_data()
         self._setup_val_data()
         self._setup_test_data()
@@ -98,7 +100,7 @@ class TranslatorTrainer:
             self.metrics.append((metric_name, metric))
         tqdm.write('Metrics successfully created')
 
-    def _setup_logger(self):
+    def setup_logger(self):
         self.logger = TrainingLogger(self.config)
 
     def _setup_train_data(self):
@@ -250,11 +252,8 @@ class TranslatorTrainer:
         batch = next(val_iter)
         src_indices = batch['src']['indices'].to(self.device)
         tgt_indices = batch['tgt']['indices'].to(self.device)
-        ctx_indices = None
-        if self.ctx_logic:
-            ctx_indices = src_indices.clone()
             
-        logits = self.translator(src_indices, tgt_indices, ctx_indices)
+        logits = self.translator(src_indices, tgt_indices)
             
         tgt_out = tgt_indices[:,1:]
         val_loss_dict = self.loss_builder.calculate_loss(
@@ -272,11 +271,8 @@ class TranslatorTrainer:
         batch = next(self.train_dataloader)
         src_indices = batch['src']['indices'].to(self.device)
         tgt_indices = batch['tgt']['indices'].to(self.device)
-        ctx_indices = batch['ctx_indices']
-        if ctx_indices is not None:
-            ctx_indices = ctx_indices.to(self.device)
             
-        logits = self.translator(src_indices, tgt_indices, ctx_indices)
+        logits = self.translator(src_indices, tgt_indices)
 
         tgt_out = tgt_indices[:,1:]
         loss_dict = self.loss_builder.calculate_loss(
@@ -294,7 +290,7 @@ class TranslatorTrainer:
         checkpoint = {
             'translator_state': self.translator.state_dict(),
             'optimizer_state': self.optimizer.state_dict(),
-            'scheduler_state': self.scheduler.state_dict()
+            # 'scheduler_state': self.scheduler.state_dict()
         }
         run_name = self.config['exp']['run_name']
         checkpoints_dir = self.config['train']['checkpoints_dir']

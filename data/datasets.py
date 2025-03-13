@@ -89,7 +89,7 @@ class Lang2LangDataset(Dataset):
             remove_separators: Union[bool, Tuple[bool]] = False,
             num_idx_logic: bool = False,
             mask_idx_logic: bool = False,
-            mask_num_step: int = 5
+            mask_num_step: int = 10
         ):
 
         self.mask_idx_logic = mask_idx_logic

@@ -7,5 +7,7 @@ if __name__ == "__main__":
     config['exp']['run_name'] = 'main'
 
     trainer = TranslatorTrainer(config)
+    trainer.setup_logger()
+    
     trainer.training_loop()
     trainer.inference()
