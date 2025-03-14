@@ -27,7 +27,7 @@ class TranslatorTrainer:
         self.drop_bos_eos_unk_logic = config['logics']['drop_bos_eos_unk']
         self.break_text_logic = config['logics']['break_text']
         self.num_idx_logic = config['logics']['num_idx']
-        self.remove_separators_logic = config['logics']['remove_separators']
+        self.remove_punctuation_logic = config['logics']['remove_punctuation']
         self.mask_idx_logic = config['logics']['mask_idx']
 
         num_mcd = config['inference']['num_mcd']
@@ -114,7 +114,7 @@ class TranslatorTrainer:
             tgt_vocab_min_freq=self.config['data']['tgt_min_freq'],
             num_idx_logic=self.num_idx_logic,
             mask_idx_logic=self.mask_idx_logic,
-            remove_separators=self.remove_separators_logic,
+            remove_punctuation=self.remove_punctuation_logic,
         )
 
         self.train_dataloader = InfiniteLoader(
@@ -137,7 +137,7 @@ class TranslatorTrainer:
             tgt_texts_path=self.config['data']['val_tgt_texts_file_path'],
             src_vocab=self.train_dataset.src_dataset.vocab,
             tgt_vocab=self.train_dataset.tgt_dataset.vocab,
-            remove_separators=(self.remove_separators_logic, False),
+            remove_punctuation=(self.remove_punctuation_logic, False),
             num_idx_logic=self.num_idx_logic
         )
 
@@ -155,7 +155,7 @@ class TranslatorTrainer:
         self.test_dataset = LangDataset(
             texts_path=self.config['data']['test_texts_file_path'],
             vocab=self.train_dataset.src_dataset.vocab,
-            remove_separators=self.remove_separators_logic,
+            remove_punctuation=self.remove_punctuation_logic,
             num_idx_logic=self.num_idx_logic
         )
         
@@ -363,7 +363,7 @@ class TranslatorTrainer:
             checkpoint_name = os.path.basename(self.config['checkpoint_path'])[:-4]
         else:
             checkpoint_name = 'main'
-            
+
         out_path = os.path.join(
             out_dir,
             f'test_out_{checkpoint_name}.txt'

@@ -56,7 +56,7 @@
     },
     "logics": {
         "num_idx": true,
-        "remove_separators": false,
+        "remove_punctuation": false,
         "break_text": true,
         "drop_bos_eos_unk": true,
         "mask_idx": false

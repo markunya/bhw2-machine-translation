@@ -42,9 +42,13 @@ def replace_with_num_if_numeric(tokens: List[str]) -> None:
             tokens[i] = num_token
 
 SEPARATORS = set(['.', '!', '?'])
+PUNCTUATION = set(['.', '?', '!', ':', ',', ';', '-', '--', '\"', '\''])
 
 def isseparator(token):
     return token in SEPARATORS
+
+def ispunctuation(token):
+    return token in PUNCTUATION
 
 def break_text(text: str) -> Tuple[List[str], List[str]]:
     tokens = text.split()
@@ -112,6 +116,14 @@ def remove_separators_from_tokens(tokens: List[str]) -> List[str]:
     result = []
     for token in tokens:
         if isseparator(token):
+            continue
+        result.append(token)
+    return result
+
+def remove_punctuation_from_tokens(tokens: List[str]) -> List[str]:
+    result = []
+    for token in tokens:
+        if ispunctuation(token):
             continue
         result.append(token)
     return result

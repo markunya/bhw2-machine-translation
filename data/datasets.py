@@ -8,7 +8,7 @@ from typing import List, Optional, Union, Tuple
 from torchtext.vocab import Vocab
 from utils.utils import (
     replace_with_num_if_numeric,
-    remove_separators_from_tokens,
+    remove_punctuation_from_tokens,
     IDX, idx2str, build_vocab
 )
 
@@ -18,7 +18,7 @@ class LangDataset(Dataset):
             texts_path: str,
             vocab: Optional[None] = None,
             vocab_min_freq: int = 1,
-            remove_separators: bool = False,
+            remove_punctuation: bool = False,
             num_idx_logic: bool = False
         ):
 
@@ -32,8 +32,8 @@ class LangDataset(Dataset):
                 tokens = text.split()
                 if num_idx_logic:
                     replace_with_num_if_numeric(tokens)
-                if remove_separators:
-                    tokens = remove_separators_from_tokens(tokens)
+                if remove_punctuation:
+                    tokens = remove_punctuation_from_tokens(tokens)
                 
                 self.tokens_arr.append(tokens)
         
@@ -86,7 +86,7 @@ class Lang2LangDataset(Dataset):
             src_vocab_min_freq: int = 1,
             tgt_vocab: Optional[Vocab] = None,
             tgt_vocab_min_freq: int =1,
-            remove_separators: Union[bool, Tuple[bool]] = False,
+            remove_punctuation: Union[bool, Tuple[bool]] = False,
             num_idx_logic: bool = False,
             mask_idx_logic: bool = False,
             mask_num_step: int = 10
@@ -95,21 +95,21 @@ class Lang2LangDataset(Dataset):
         self.mask_idx_logic = mask_idx_logic
         self.mask_num_step = mask_num_step
 
-        src_rs = remove_separators if isinstance(remove_separators, bool) else remove_separators[0]
-        tgt_rs = remove_separators if isinstance(remove_separators, bool) else remove_separators[1]
+        src_rs = remove_punctuation if isinstance(remove_punctuation, bool) else remove_punctuation[0]
+        tgt_rs = remove_punctuation if isinstance(remove_punctuation, bool) else remove_punctuation[1]
         
         self.src_dataset = LangDataset(
             texts_path=src_texts_path,
             vocab=src_vocab,
             vocab_min_freq=src_vocab_min_freq,
-            remove_separators=src_rs,
+            remove_punctuation=src_rs,
             num_idx_logic=num_idx_logic
         )
         self.tgt_dataset = LangDataset(
             texts_path=tgt_texts_path,
             vocab=tgt_vocab,
             vocab_min_freq=tgt_vocab_min_freq,
-            remove_separators=tgt_rs,
+            remove_punctuation=tgt_rs,
             num_idx_logic=num_idx_logic
         )
 
