@@ -7,8 +7,8 @@
         "log_num_samples": 10
     },
     "data": {
-        "train_src_texts_file_path": "data/texts/train_broken.de-en.de",
-        "train_tgt_texts_file_path": "data/texts/train_broken.de-en.en",
+        "train_src_texts_file_path": "data/texts/train.de-en.de",
+        "train_tgt_texts_file_path": "data/texts/train.de-en.en",
         "val_src_texts_file_path": "data/texts/val.de-en.de",
         "val_tgt_texts_file_path": "data/texts/val.de-en.en",
         "test_texts_file_path": "data/texts/test1.de-en.de",
@@ -57,7 +57,7 @@
     "logics": {
         "num_idx": true,
         "remove_punctuation": false,
-        "break_text": true,
+        "break_text": false,
         "drop_bos_eos_unk": true,
         "mask_idx": false
     },
